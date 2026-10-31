@@ -27,6 +27,7 @@ git worktree list | tail -n +2 | head -5 | sed 's/^/- worktree: /'
 # The working tree counts: agents read and write there (the index is always LF with text=auto)
 eol=$(git ls-files --eol | awk '{print $2}' | sed 's/^w\///' | grep -vE '^(-text|none|)$' | sort | uniq -c | tr -s ' ' | tr '\n' ',')
 echo "- Line endings in working tree:${eol%,}$([ -e .gitattributes ] || echo '; no .gitattributes')"
+git ls-files --eol | awk '$2 == "w/mixed" {print $NF}' | head -5 | sed 's/^/  - mixed: /'
 
 echo
 echo "## Failure history (last $depth commits)"
@@ -58,7 +59,8 @@ echo
 echo "## Code (tracked)"
 echo "| Extension | Files | Lines |"
 echo "|---|---|---|"
-textfiles | grep -E '\.[A-Za-z0-9]+$' | sed -E 's/.*\.([A-Za-z0-9]+)$/\1/' | sort | uniq -c | sort -rn | head -10 | while read -r n ext; do
+# Dotfiles such as .gitignore have no extension
+textfiles | grep -E '[^/.][^/]*\.[A-Za-z0-9]+$' | sed -E 's/.*\.([A-Za-z0-9]+)$/\1/' | sort | uniq -c | sort -rn | head -10 | while read -r n ext; do
   loc=$(textfiles | grep -E "\.${ext}$" | tr '\n' '\0' | xargs -0 cat 2>/dev/null | wc -l)
   echo "| $ext | $n | $loc |"
 done
@@ -72,18 +74,29 @@ files | awk -F/ '{print (NF>1 ? $1"/" : $1)}' | sort -u | tr '\n' ' ' | fold -w 
 echo
 echo "Nested build manifests (depth 2-3):"
 files | grep -E '^[^/]+/([^/]+/)?[^/]+$' | grep -E '/(Makefile|justfile|Taskfile\.ya?ml|package\.json|pyproject\.toml|Cargo\.toml|go\.mod|pom\.xml|build\.gradle(\.kts)?|[^/]+\.csproj|CMakeLists\.txt|mix\.exs|Gemfile|composer\.json|pubspec\.yaml|Package\.swift|build\.sbt|flake\.nix|Dockerfile)$' | head -10 | sed 's/^/- /'
-# Commands an agent can call: task runner targets and npm scripts
+echo "Commands an agent can call:"
+# Task runner targets, npm scripts, shell scripts, commands documented for humans
 [ -f Makefile ] && echo "- make targets: $(grep -oE '^[A-Za-z0-9_.-]+:' Makefile | tr -d ':' | sort -u | head -15 | tr '\n' ' ')"
 for j in justfile Justfile; do [ -f "$j" ] && echo "- just recipes: $(grep -oE '^[A-Za-z0-9_-]+( [^:]*)?:' "$j" | cut -d' ' -f1 | tr -d ':' | head -15 | tr '\n' ' ')"; done
 if [ -f package.json ] && [ -n "$py" ]; then
   s=$("$py" -c "import json; d=json.load(open('package.json',encoding='utf-8')); [print(f'{k}: {v}') for k,v in d.get('scripts',{}).items()]" 2>/dev/null | tr -d '\r')
   [ -n "$s" ] && sed 's/^/- npm script /' <<<"$s"
 fi
+files | grep -E '^([^/]+|scripts/[^/]+)\.(sh|bat|cmd|ps1)$' | head -10 | sed 's/^/- script: /'
+# Commands documented for humans: shell lines in fenced blocks of README/CONTRIBUTING/AGENTS that build or test
+for doc in README.md CONTRIBUTING.md AGENTS.md CLAUDE.md docs/CONTRIBUTING.md; do
+  [ -f "$doc" ] || continue
+  awk '/^```/ {inblock = !inblock; next} inblock' "$doc" | grep -vE '[│├└─]' \
+    | grep -iE '(^|[ /])(test|tests|pytest|unittest|build|check|lint|make|gradlew?|mvn|cargo|go|dotnet|npm|pnpm|yarn|tox|nox)( |$)' \
+    | head -4 | sed "s|^|- documented in $doc: |"
+done
 echo "Commit-time hooks:"
-hp=$(git config --get core.hooksPath)
-[ -n "$hp" ] && echo "- core.hooksPath: $hp"
-ls .git/hooks 2>/dev/null | grep -v '\.sample$' | sed 's/^/- .git\/hooks\//'
-for h in .husky .pre-commit-config.yaml lefthook.yml .lefthook.yml .githooks; do [ -e "$h" ] && echo "- $h"; done
+{
+  hp=$(git config --get core.hooksPath)
+  [ -n "$hp" ] && echo "- core.hooksPath: $hp"
+  ls .git/hooks 2>/dev/null | grep -v '\.sample$' | sed 's/^/- .git\/hooks\//'
+  for h in .husky .pre-commit-config.yaml lefthook.yml .lefthook.yml .githooks; do [ -e "$h" ] && echo "- $h"; done
+} | grep . || echo "- none"
 
 echo
 echo "## CI"
@@ -104,12 +117,13 @@ for f in .github/dependabot.yml renovate.json .github/renovate.json .github/CODE
 echo
 echo "## Agent configuration"
 seen=" "
-for f in CLAUDE.md AGENTS.md GEMINI.md .agents/AGENTS.md .cursorrules .github/copilot-instructions.md .mcp.json; do
+# The user's global instructions load in every session too
+for f in "$HOME/.claude/CLAUDE.md" CLAUDE.md AGENTS.md GEMINI.md .agents/AGENTS.md .cursorrules .github/copilot-instructions.md .mcp.json; do
   [ -e "$f" ] || continue
   # Do not count files already measured as an import twice
   [[ $seen == *" $f "* ]] && continue
-  echo "- $f ($(size "$f"))"
-  for imp in $(grep -oE '^@[^ ]+' "$f" | cut -c2-); do
+  echo "- ${f/#$HOME/\~} ($(size "$f"))"
+  for imp in $(grep -oE '^@[^ ]+' "$f" | cut -c2- | tr -d '\r'); do
     imp=${imp/#\~/$HOME}
     seen="$seen$imp "
     [ -e "$imp" ] && echo "  - imports $imp ($(size "$imp"))" || echo "  - imports $imp (missing)"
@@ -123,18 +137,47 @@ for f in .claude/settings.json .claude/settings.local.json "$HOME/.claude/settin
 done
 for d in .claude/skills .claude/agents .claude/commands; do [ -d "$d" ] && echo "- $d: $(ls "$d" | tr '\n' ' ')"; done
 src=$(git check-ignore -v .claude/settings.json 2>/dev/null | cut -f1)
-[ -n "$src" ] && echo "- .claude/settings.json would be git-ignored (source: ${src%:*}); hooks and deny rules apply only locally"
+if [ -n "$src" ]; then
+  echo "- .claude/settings.json would be git-ignored (source: ${src%:*}); hooks and deny rules apply only locally"
+else
+  echo "- .claude/settings.json would be tracked; hooks and deny rules can travel with the repo"
+fi
 
 echo
 echo "## Version"
-tag=$(git describe --tags --abbrev=0 2>/dev/null)
-if [ -n "$tag" ]; then
-  ver=${tag#v}
-  echo "- Latest tag: $tag"
-  echo "- \"$ver\" appears literally in:"
-  files | grep -viE '\.(png|jpg|gif|ico|jar|zip|lock)$|changelog' | tr '\n' '\0' | xargs -0 grep -lF "$ver" 2>/dev/null | head -12 | sed 's/^/  - /'
+desc=$(git describe --tags 2>/dev/null)
+echo "- Latest tag: ${desc:-none}$([ -n "$desc" ] && [ "$desc" != "$(git describe --tags --abbrev=0 2>/dev/null)" ] && echo ' (HEAD is past the tag)')"
+# Pass 1: values declared under a bare version key (not loader_version, not a plugin or dependency line,
+# not in tests), as "x.y.z file". "0, 3, 2, 0" (Windows resources) counts as 0.3.2.
+# Pass 2: the project's version family comes from the latest tag, else from the most often declared value;
+# every other value of that major.minor family anywhere in the files is a stale copy.
+vfiles=$(textfiles | grep -viE '(^|/)changelog|\.lock$|-lock\.json$|(^|/)(node_modules|vendor)/|(^|/)(test|tests|spec|__tests__)/|[._-](test|spec)\.')
+decl=$(tr '\n' '\0' <<<"$vfiles" \
+  | xargs -0 grep -HiE "(^|[^A-Za-z0-9_])(__version__|version|filevers|prodvers|FileVersion|ProductVersion)([^A-Za-z0-9_]|$)" 2>/dev/null \
+  | grep -viE "(^[^:]+:.*(\bid\b|plugin|implementation|dependenc|classpath|uses:|[a-z]_version|version_[a-z]|-version))" \
+  | sed -E 's/([0-9]+), ?([0-9]+), ?([0-9]+)/\1.\2.\3/g' \
+  | awk -F: '{ f = $1; line = substr($0, length(f) + 2)
+      while (match(line, /[0-9]+\.[0-9]+\.[0-9]+/)) { print substr(line, RSTART, RLENGTH), f; line = substr(line, RSTART + RLENGTH) } }' \
+  | sort -u)
+tagged=$(git describe --tags --abbrev=0 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -n "$tagged" ]; then
+  family=${tagged%.*}
 else
-  echo "- no tags; find the version source by hand"
+  family=$(cut -d' ' -f1 <<<"$decl" | grep . | sort | uniq -c | sort -rn | awk 'NR==1 {print $2}')
+  family=${family%.*}
+fi
+if [ -n "$family" ]; then
+  current=$(cut -d' ' -f1 <<<"$decl" | grep -E "^${family//./\\.}\." | sort -uV | tail -1)
+  [ -z "$current" ] && current=$tagged
+  echo "- Current version: $current, declared in: $(grep "^$current " <<<"$decl" | cut -d' ' -f2- | head -6 | tr '\n' ' ')"
+  stale=$(tr '\n' '\0' <<<"$vfiles" | xargs -0 grep -HoE "(^|[^0-9.])v?${family//./\\.}\.[0-9]+([^0-9.]|$)" 2>/dev/null \
+    | sed -E "s/^([^:]+):.*(${family//./\\.}\.[0-9]+).*/\2 \1/" | grep -v "^$current " | sort -u)
+  if [ -n "$stale" ]; then
+    echo "- MISMATCH: other versions of the $family family:"
+    sed -E 's/^([^ ]+) (.*)$/  - \1 in \2/' <<<"$stale" | head -8
+  fi
+else
+  echo "- no declared version found; find the version source by hand"
 fi
 
 echo
@@ -145,4 +188,15 @@ git status --ignored --porcelain 2>/dev/null | sed -nE 's/^(!!|\?\?) //p' | grep
   echo "- $d $(du -sh "$d" 2>/dev/null | cut -f1) ($state)"
 done
 [ -d .claude/worktrees ] && echo "- .claude/worktrees/ holds $(ls .claude/worktrees | wc -l) repo copies that search and glob also hit"
+# Ignored files that may hold secrets or personal data: keep them away from the agent too
+sens=$(git status --ignored --porcelain --untracked-files=all 2>/dev/null | sed -nE 's/^!! //p' \
+  | grep -iE '(^|/)(\.env[^/]*|config[^/]*\.(json|ya?ml|toml|ini)|[^/]*secret[^/]*|[^/]*\.(pem|key|p12|pfx|log|csv|sqlite|db))$' \
+  | grep -vE '(^|/)(node_modules|\.venv|venv|build|dist|target|\.gradle)/' | head -8)
+if [ -n "$sens" ]; then
+  echo "Ignored files that may be sensitive:"
+  while read -r f; do
+    grep -qF "${f}" <<<"$deny" && state="deny rule present" || state="no deny rule"
+    echo "- $f ($state)"
+  done <<<"$sens"
+fi
 exit 0

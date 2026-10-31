@@ -19,8 +19,10 @@ printf 'def parse(x):\n    return x\n' > app/parser.py
 printf 'def test_parse():\n    assert True\n' > tests/test_parser.py
 printf '@AGENTS.md\n' > CLAUDE.md
 printf '# Agents\n' > AGENTS.md
-printf 'build/\n' > .gitignore
-printf 'Version 1.2.3\n' > README.md
+printf 'build/\nconfig.json\n' > .gitignore
+printf '# Fixture\n\nVersion 1.2.3\n\n```bash\npython -m pytest -q\n```\n' > README.md
+printf '@echo off\r\necho build\r\n' > build.bat
+printf 'line one\r\nline two\n' > mixed.txt
 commit "feat: parser"
 printf 'def parse(x):\n    return x.strip()\n' > app/parser.py
 commit "fix(parser): strip input"
@@ -31,8 +33,12 @@ commit "test: make flaky parser test deterministic"
 printf 'x' > notes.txt
 commit "chore: fixed wording in notes"
 git tag v1.2.3
+# Version moves past the tag in the manifest only; README keeps the old value
+printf '[project]\nname = "fixture"\nversion = "1.2.4"\n' > pyproject.toml
+commit "chore(release): 1.2.4"
 git switch -q -c stranded && git commit -q --allow-empty -m "fix: stranded repair" && git switch -q main
 mkdir -p build && printf 'artefact' > build/out.bin
+printf '{"iban": "x"}' > config.json
 
 out=$(bash "$inv" . 2>&1)
 status=$?
@@ -41,14 +47,23 @@ expect() { grep -qE -- "$1" <<<"$out" || { echo "MISSING: $1"; fail=1; }; }
 absent() { ! grep -qE -- "$1" <<<"$out" || { echo "UNEXPECTED: $1"; fail=1; }; }
 
 [ $status -eq 0 ] || { echo "exit $status instead of 0"; fail=1; }
-expect 'Repair commits: 3 of 5'
+expect 'Repair commits: 3 of 6'
 expect 'make flaky parser test deterministic'
 absent 'fixed wording'
 expect '^- 2 app/parser\.py'
 expect 'unmerged: stranded'
-expect 'Latest tag: v1\.2\.3'
-expect '^  - (README\.md|pyproject\.toml)'
+expect 'Latest tag: v1\.2\.3-1-.*\(HEAD is past the tag\)'
+expect 'Current version: 1\.2\.4, declared in: pyproject\.toml'
+expect 'MISMATCH: other versions of the 1\.2 family'
+expect '^  - 1\.2\.3 in README\.md'
+expect 'mixed: mixed\.txt'
+expect 'script: build\.bat'
+expect 'documented in README\.md: python -m pytest -q'
+expect '^- config\.json \(no deny rule\)'
+expect 'Commit-time hooks:'
+expect '^- none'
 expect '\| py \| 2 \|'
+absent '\| gitignore \|'
 expect 'imports AGENTS\.md'
 expect '^- build/ .*\(unprotected\)'
 expect 'no CI configuration found'
@@ -66,7 +81,8 @@ out=$(bash "$inv" "$fresh" 2>&1)
 status=$?
 [ $status -eq 0 ] || { echo "fresh repo: exit $status instead of 0"; fail=1; }
 expect 'Repair commits: 0 of 1'
-expect 'no tags'
+expect 'Latest tag: none'
+expect 'no declared version found'
 expect '\| rs \| 1 \|'
 expect 'Cargo\.toml'
 expect '## Noise sources'

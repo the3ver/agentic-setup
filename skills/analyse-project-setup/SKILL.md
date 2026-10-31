@@ -11,8 +11,8 @@ Goal: give the coding agent *backpressure*. The pipeline should report failures 
 [CATALOG.md](CATALOG.md) holds the layer model, the concepts (each with the failure class it catches) and the token techniques. Read it before step 3. Its tool names are examples; choose the tools of the stack you find.
 
 Proposals come from two sources:
-- **Baseline:** concepts marked *baseline* in CATALOG.md fit every repo of the stack and need no history (quiet check wrapper, formatter, lint and type checks as errors, deny rules, same rules locally and in CI, single version source, line endings). Propose every missing one.
-- **Evidence:** concepts marked *evidence* (architecture rules, consistency tests, custom static rules, generators, hermetic-test rules, mutation testing) are proposed and prioritised from evidence: repair commits, recurring review findings, visible structure. With little or no history, take the typical failure classes of the stack and the patterns visible in the code structure, mark those proposals "preventive, no evidence yet", and recommend re-running the analysis once the history has grown.
+- **Baseline:** concepts marked *baseline* in CATALOG.md fit every repo of the stack and need no history. Propose every missing one.
+- **Evidence:** concepts marked *evidence* in CATALOG.md are proposed and prioritised from evidence: repair commits, recurring review findings, visible structure. With little or no history, take the typical failure classes of the stack and the patterns visible in the code structure, mark those proposals "preventive, no evidence yet", and recommend re-running the analysis once the history has grown.
 
 Write the report in the user's language.
 
@@ -29,24 +29,30 @@ It collects stack-independent facts only: git state, repair commits and hotspots
 From these facts and the files they point to, identify:
 - **Stack and ecosystem:** languages, build tool, package manager, test framework.
 - **The pipeline per layer** (CATALOG.md): what runs on edit, at end of turn, on commit, in CI, periodically, and what the agent may read.
-- **The check command** an agent would use today. Run it once and measure duration, exit code and output lines: `time <command> 2>&1 | wc -l`. Measure the command as an agent calls it (for example plain `npm test`, `cargo test`, `gradle build`), not with a terser reporter. Run it in the background if it takes longer than 2 minutes, and confirm with `git status` afterwards that it changed no tracked files.
+- **The check command** an agent would use today: a task runner target or npm script if there is one, else the command documented in README/AGENTS.md (the inventory lists both), else the framework's default. Run it once and measure duration, exit code and output lines:
+  `time <command> > <scratch>/check.out 2>&1; echo "exit=$?"; wc -l < <scratch>/check.out`
+  Measure the command as an agent calls it, not with a terser reporter; if one flag changes the line count a lot (for example `-v`), report both numbers. Run it in the background if it takes longer than 2 minutes.
+- **Baseline tools, measured read-only:** for each baseline concept that is missing, run the stack's usual tool once with default rules through a throwaway runner (`uvx`, `npx --yes`, `pnpm dlx`, `go run`, `dotnet tool exec` or similar) in check mode. The finding counts decide in step 4 how to handle existing violations. Keep caches outside the repo (`--no-cache`, `--cache-dir <scratch>`).
 
-Done when every layer of the model has a current state (present, partial, missing) and the check command has measured numbers.
+After any command: compare `git status --porcelain --ignored` with the state before and remove what the run created. The skill changes nothing in the target repo.
+
+Done when every layer of the model has a current state (present, partial, missing), the check command has measured numbers, and every missing baseline tool has a finding count or a reason why it could not run.
 
 ## 2. Mine the history for failure classes
 
 The repair commits from the inventory are the evidence of what the pipeline lets through. For each repair commit (all of them up to about 30, otherwise the most recent 30 plus the hotspots):
 - read its diff (`git show --stat <hash>`, then the relevant hunks),
 - name the **failure class** (for example: unformatted code, null/undefined access, wrong layer dependency, forgotten registration or resource, flaky test from fixed waits or real time, version drift, broken CI config, missing translation),
-- decide whether a deterministic tool would have caught it, and at which layer.
+- find the commit that introduced the defect (`git log -L <range>:<file> <fix>^` or `git blame <fix>^ -- <file>`). When the introducing commit is itself a repair, you have a **fix chain**: nothing checked between the two commits. Report fix chains; they are the strongest argument for layer 2,
+- decide whether a deterministic tool would have caught it, and at which layer. Where cheap, prove it: run the proposed tool on the introducing state (`git show <commit>:<file>` into the scratch folder) and note whether it fails.
 
 Search the current code for a pattern only to configure a rule for a failure class you have evidence or a preventive reason for: count existing occurrences to choose between failing on all, a baseline, or checking only changed lines. Do not scan the code for patterns without such a reason.
 
-With fewer than about 20 commits or no repair commits, this step yields little: say so, and rely on the baseline plus the stack's typical failure classes (research them if needed).
+With fewer than 3 repair commits this step yields little: say so, and rely on the baseline plus the stack's typical failure classes (research them if needed). The total commit count does not matter.
 
-Further sources for failure classes, if available: the project's docs (README, CLAUDE.md/AGENTS.md, CONTRIBUTING, ADRs), notes systems named in the user's instructions, and a search over past agent sessions (only hits whose `cwd` lies in the repo, excluding runs of this skill). Read an *Agentic setup* report from an earlier run only after this step, so it does not bias the fresh look.
+Further sources for failure classes, if available: the project's docs (README, CLAUDE.md/AGENTS.md, CONTRIBUTING, ADRs), notes systems named in the user's instructions, and past sessions of any coding agent the user's instructions name (only hits whose `cwd` lies in the repo, excluding runs of this skill). If no such source exists, say so in the report. Read an `## Agentic setup` report from an earlier run only after this step, so it does not bias the fresh look.
 
-Done when every repair commit you read has a failure class and a verdict (tool could catch it at layer X / needs judgement / one-off).
+Done when every repair commit you read has a failure class, its introducing commit (or "not found") and a verdict (tool could catch it at layer X / needs judgement / one-off).
 
 ## 3. Assess the pipeline
 
@@ -73,9 +79,11 @@ Phases by effort and benefit:
 - **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class (if the history shows one).
 - **P1** quality in the loop: formatter on edit, compiler/type checks as errors, consistency tests and custom rules for the remaining failure classes, the same checks in CI.
 - **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, dependency updates, branch protection.
+
+Bundle what depends on one decision: without CI, "CI parity", dependency updates and branch protection are one proposal ("add CI"), not three separate gaps.
 - **P3** generalisation: uniform verbs (`fmt`, `check`, `test-fast`, `test`) as reusable entry points.
 
-The result is a Markdown report headed *Agentic setup (as of <date>)*: pipeline per layer as a table (current state, cost, gaps), failure classes with evidence, plan P0 to P3 with configurations, open points to verify, research sources.
+The result is a Markdown report. Its heading is always the English `## Agentic setup`, whatever the report language, so a later run finds and replaces it; the first line below states the date and the skill version. Contents: pipeline per layer as a table (current state, cost, gaps), failure classes with evidence and fix chains, plan P0 to P3 with configurations, open points to verify, research sources.
 
 Storage:
 - The full report always appears in the answer.
