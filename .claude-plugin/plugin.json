@@ -1,6 +1,6 @@
 {
   "name": "agentic-setup",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Analysiert das Agentic-Coding-Setup eines Repos und plant deterministische Werkzeuge (Hooks, Linter, Architektur- und Mutationstests, CI), die Qualität sichern und LLM-Tokens sparen.",
   "author": {
     "name": "the3ver"

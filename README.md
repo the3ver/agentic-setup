@@ -29,7 +29,7 @@ Jeder gefundene Fehler im Inventar bekommt zuerst eine Erwartung in `tests/smoke
 
 Voraussetzungen: Git Bash oder ein anderes Bash, Git, Python 3 (für JSON).
 
-Der Skill legt Ergebnisse in einem Markdown-Gedächtnis ab, wenn eines per MCP angebunden ist (Tools `memory_search`, `memory_update`, z. B. ein Obsidian-Vault). Ohne Gedächtnis gibt er Bestandsaufnahme und Plan nur in der Antwort aus.
+Der Skill braucht kein Notizsystem. Er gibt Bestandsaufnahme und Plan in der Antwort aus und ändert das analysierte Repo nicht. Soll der Bericht dauerhaft abgelegt werden, gehört der Ort in die eigenen Anweisungen (z. B. `~/.claude/CLAUDE.md`: "Agentic-Setup-Berichte in `<pfad>` speichern"); der Skill folgt dann diesen Anweisungen.
 
 ## Lizenz
 

@@ -12,8 +12,10 @@ Das Schichtenmodell, den Werkzeugkatalog je Stack und die Token-Techniken findes
 
 ## 1. Vorwissen holen
 
-- Ist ein Markdown-Gedächtnis (Vault) per MCP angebunden: `memory_search` nach Repo-Name und `agentic-coding-deterministische-tools`. Vorhandene Projektnotiz (`projekte/<repo>.md`) lesen: Architekturregeln, Stolperfallen und Releaseablauf stehen oft nur dort. Einen vorhandenen Abschnitt *Agentic-Setup* aus einem früheren Lauf erst nach Schritt 2 lesen, damit er den frischen Blick nicht vorprägt.
-- Ist eine Transkriptsuche verfügbar (`search_session_transcripts`): nach dem Repo-Namen und nach Stichworten wie `flaky`, `rot`, `vergessen`, `Regression`. Werte nur Treffer aus, deren `cwd` im Repo liegt, und lass die eigene Session sowie frühere Läufe dieses Skills weg (ihr Text enthält die Suchwörter selbst). Wiederkehrende Pannen aus früheren Sessions (rote Builds, vergessene Dateien, Flaky-Tests) sind die besten Kandidaten für neue Regeln.
+- Projektdoku im Repo: README, CLAUDE.md/AGENTS.md, CONTRIBUTING, CONTEXT.md, `docs/adr/`. Architekturregeln, Stolperfallen und Releaseablauf stehen oft nur dort.
+- Projektwissen außerhalb des Repos, falls die Umgebung welches anbietet (Notizen, ein Gedächtnis per MCP, Tickets). Wo es liegt, sagen die Anweisungen des Nutzers; ohne solche Quelle diesen Punkt überspringen.
+- Einen *Agentic-Setup*-Bericht aus einem früheren Lauf erst nach Schritt 2 lesen, damit er den frischen Blick nicht vorprägt.
+- Ist eine Suche in früheren Sessions verfügbar: nach dem Repo-Namen und nach Stichworten wie `flaky`, `rot`, `vergessen`, `Regression`. Werte nur Treffer aus, deren `cwd` im Repo liegt, und lass die eigene Session sowie frühere Läufe dieses Skills weg (ihr Text enthält die Suchwörter selbst). Wiederkehrende Pannen aus früheren Sessions (rote Builds, vergessene Dateien, Flaky-Tests) sind die besten Kandidaten für neue Regeln.
 - Die Zeilen `Panne?` und `ungemergt` aus dem Inventar (Schritt 2) gehören ebenfalls in diese Liste.
 
 Fertig, wenn du eine Liste *Pannen und ungeschriebene Regeln* mit Quelle hast (darf leer sein).
@@ -62,10 +64,11 @@ Phasen nach Aufwand und Nutzen:
 - **P2** tiefer: Mutation Testing periodisch, Generatoren statt LLM-Handarbeit, Changelog aus Commits, Review-Subagent mit Guidelines, Dependabot, Branch-Schutz.
 - **P3** Generalisierung: einheitliche Verben (`fmt`, `check`, `test-fast`, `test`), wiederverwendbare Bausteine.
 
-Ablage, wenn ein Vault angebunden ist (sonst nur die Antwort):
-- In der Vault-Projektnotiz `projekte/<repo>.md` den Abschnitt *Agentic-Setup (Stand <Datum>)* anlegen oder, falls vorhanden, ersetzen: Bestandsaufnahme als Tabelle, Plan, offene Prüfpunkte. Bereits umgesetzte Punkte aus dem alten Abschnitt als erledigt übernehmen.
-- Neue, stack-übergreifende Erkenntnisse in `topics/agentic-coding-deterministische-tools.md` nachtragen.
-- `memory_append_daily` mit einem Satz und Link.
-- Ist der Vault ein Git-Repo: committen und pushen.
+Ergebnis ist ein Markdown-Bericht mit der Überschrift *Agentic-Setup (Stand <Datum>)*: Bestandsaufnahme als Tabelle, Plan P0 bis P3, offene Prüfpunkte, Quellen der Recherche.
 
-Antwort: Bestandsaufnahme als Tabelle, Plan P0 bis P3, offene Prüfpunkte, Quellen der Recherche. Hat das Repo uncommittete Änderungen, darauf hinweisen: Tooling-Änderungen erst nach einem sauberen Commit. Im Dialog mit dem Nutzer fragen, mit welcher Phase es losgeht; als gestartete Session nur berichten.
+Ablage:
+- Der Bericht steht immer vollständig in der Antwort.
+- Gespeichert wird er dort, wo die Anweisungen des Nutzers Projektwissen ablegen (CLAUDE.md/AGENTS.md, Notizsystem). Gibt es keine solche Anweisung, nur an einem Ort, den der Nutzer nennt; das Ziel-Repo bleibt unverändert.
+- Liegt dort schon ein Bericht aus einem früheren Lauf: ersetzen statt ergänzen, bereits umgesetzte Punkte als erledigt übernehmen.
+
+Zum Schluss: Hat das Repo uncommittete Änderungen, darauf hinweisen: Tooling-Änderungen erst nach einem sauberen Commit. Im Dialog mit dem Nutzer fragen, mit welcher Phase es losgeht; als gestartete Session nur berichten.
