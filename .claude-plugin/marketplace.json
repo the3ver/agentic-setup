@@ -1,0 +1,5 @@
+{
+  "name": "agentic-setup",
+  "owner": { "name": "the3ver" },
+  "plugins": [{ "name": "agentic-setup", "source": "./" }]
+}
