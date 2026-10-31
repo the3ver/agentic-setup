@@ -10,6 +10,10 @@ Goal: give the coding agent *backpressure*. The pipeline should report failures 
 
 [CATALOG.md](CATALOG.md) holds the layer model, the concepts (each with the failure class it catches) and the token techniques. Read it before step 3. Its tool names are examples; choose the tools of the stack you find.
 
+Proposals come from two sources:
+- **Baseline:** concepts marked *baseline* in CATALOG.md fit every repo of the stack and need no history (quiet check wrapper, formatter, lint and type checks as errors, deny rules, same rules locally and in CI, single version source, line endings). Propose every missing one.
+- **Evidence:** concepts marked *evidence* (architecture rules, consistency tests, custom static rules, generators, hermetic-test rules, mutation testing) are proposed and prioritised from evidence: repair commits, recurring review findings, visible structure. With little or no history, take the typical failure classes of the stack and the patterns visible in the code structure, mark those proposals "preventive, no evidence yet", and recommend re-running the analysis once the history has grown.
+
 Write the report in the user's language.
 
 ## 1. Map the pipeline
@@ -36,7 +40,9 @@ The repair commits from the inventory are the evidence of what the pipeline lets
 - name the **failure class** (for example: unformatted code, null/undefined access, wrong layer dependency, forgotten registration or resource, flaky test from fixed waits or real time, version drift, broken CI config, missing translation),
 - decide whether a deterministic tool would have caught it, and at which layer.
 
-Search the current code for a pattern only to configure the rule for a failure class you found in the history: count existing occurrences to choose between failing on all, a baseline, or checking only changed lines. Do not scan the code for patterns without evidence from the history.
+Search the current code for a pattern only to configure a rule for a failure class you have evidence or a preventive reason for: count existing occurrences to choose between failing on all, a baseline, or checking only changed lines. Do not scan the code for patterns without such a reason.
+
+With fewer than about 20 commits or no repair commits, this step yields little: say so, and rely on the baseline plus the stack's typical failure classes (research them if needed).
 
 Further sources for failure classes, if available: the project's docs (README, CLAUDE.md/AGENTS.md, CONTRIBUTING, ADRs), notes systems named in the user's instructions, and a search over past agent sessions (only hits whose `cwd` lies in the repo, excluding runs of this skill). Read an *Agentic setup* report from an earlier run only after this step, so it does not bias the fresh look.
 
@@ -50,21 +56,21 @@ For each layer, record:
 
 Answer the check questions in CATALOG.md.
 
-Done when every failure class from step 2 is either caught by an existing layer or listed as a gap.
+Done when every baseline concept for this stack is assessed (present, partial, missing) and every failure class from step 2 is either caught by an existing layer or listed as a gap.
 
 ## 4. Choose and configure tools
 
-For each gap, pick a deterministic tool from the concept in CATALOG.md that fits **this stack**. If you do not know the ecosystem's tool for a concept, or compatibility with the language or build version is unclear, research it; whatever stays unclear goes into the plan as "to verify".
+For each gap (missing baseline concept or uncaught failure class), pick a deterministic tool from the concept in CATALOG.md that fits **this stack**. If you do not know the ecosystem's tool for a concept, or compatibility with the language or build version is unclear, research it; whatever stays unclear goes into the plan as "to verify".
 
 Every proposal states:
-- the failure class and its evidence (commit hashes),
+- the reason: *baseline*, or the failure class with its evidence (commit hashes), or *preventive, no evidence yet*,
 - tool and concrete configuration for this repo: which rule or check, where it runs (hook, build task, CI job), how existing violations are handled (fix now, baseline, changed lines only), autofix where the tool offers one,
 - cost and benefit: duration per run, output when green, tokens saved or quality gained.
 
 ## 5. Write the plan
 
 Phases by effort and benefit:
-- **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class.
+- **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class (if the history shows one).
 - **P1** quality in the loop: formatter on edit, compiler/type checks as errors, consistency tests and custom rules for the remaining failure classes, the same checks in CI.
 - **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, dependency updates, branch protection.
 - **P3** generalisation: uniform verbs (`fmt`, `check`, `test-fast`, `test`) as reusable entry points.

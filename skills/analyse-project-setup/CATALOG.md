@@ -29,23 +29,25 @@ Hook mechanics in Claude Code: exit 2 blocks and passes stderr to Claude, exit 1
 
 Tool names are examples. Pick the equivalent of the stack at hand and research it when unknown.
 
-| Concept | Failure class it catches | Signs it is present | Examples |
-|---|---|---|---|
-| Quiet check wrapper | context flooded by green output; agent misses the one failing line | one command, one line when green | shell script around the build/test command; reporter flags (`-q`, `--reporter=dot`, `--max-failures=1`) |
-| Formatter on edit | style churn in diffs, review noise, "fix formatting" commits | formatter config, hook or CI check | Spotless, Prettier, Biome, ruff format, rustfmt, gofmt, dotnet format, mix format |
-| Lint / compiler checks as errors | known bug patterns, unused code, suspicious constructs | linter config, warnings treated as errors | Error Prone, ESLint, ruff, clippy, staticcheck, Roslyn analyzers, Credo |
-| Type and null checks | null/undefined access, wrong types | strict mode in config, type checker in CI | NullAway, `tsc --noEmit` / `checkJs`, mypy/pyright, Kotlin/Rust/Go compilers |
-| Architecture rules | wrong layer or module dependencies, logic coupled to framework | rule tests or dependency config | ArchUnit, dependency-cruiser, import-linter, go-arch-lint, NetArchTest; a guard test that greps imports |
-| Consistency tests | forgotten registration, resource, translation, protocol field, config key | tests that compare declarations with their counterparts | test that every registered item has its resource files; message types of sender and receiver match |
-| Generators | handwritten derived files drift or break | generator task in the build | data generation, OpenAPI/protobuf codegen, schema-driven code |
-| Custom static rules | project conventions and recurring API misuse; agent-specific habits (new suppressions, skipped tests) | rule files in the repo | Semgrep, ast-grep, CodeQL, custom lint rules |
-| Hermetic tests | flaky tests from fixed waits, real time, network, unseeded randomness; retries that hide them | rule against sleeps/waits, injected clock, retries 0 locally | a static rule banning `sleep`/`waitForTimeout` in tests; `Clock`/fake timers; seeded RNG |
-| Mutation testing | weak tests that pass without checking behaviour | periodic job with a score | PIT, Stryker, mutmut, cargo-mutants, go-mutesting |
-| Single version source | version drift between manifest, code, docs | one declared version, others derived or checked | build property read at runtime, bump script, consistency test |
-| Changelog from commits | forgotten or inconsistent release notes | tool config, commit message lint | git-cliff, changesets, commitlint |
-| Dependency hygiene | unused or vulnerable dependencies, outdated runtimes | analyzer or update bot | knip, depcheck, cargo-udeps, deptry, Dependabot, Renovate |
-| Security scans | injection, secrets in code, vulnerable dependencies | SAST/SCA job | Semgrep rule packs, CodeQL, gitleaks, dependency audit |
-| Line ending policy | whole-file diffs, broken scripts on another OS | `.gitattributes` | `* text=auto`, `*.sh eol=lf` |
+*Baseline* concepts fit every repo of a stack and are proposed whenever missing. *Evidence* concepts are proposed from repair commits, review findings or visible structure; without such evidence only as "preventive" for the stack's typical failure classes.
+
+| Concept | Kind | Failure class it catches | Signs it is present | Examples |
+|---|---|---|---|---|
+| Quiet check wrapper | baseline | context flooded by green output; agent misses the one failing line | one command, one line when green | shell script around the build/test command; reporter flags (`-q`, `--reporter=dot`, `--max-failures=1`) |
+| Formatter on edit | baseline | style churn in diffs, review noise, "fix formatting" commits | formatter config, hook or CI check | Spotless, Prettier, Biome, ruff format, rustfmt, gofmt, dotnet format, mix format |
+| Lint / compiler checks as errors | baseline | known bug patterns, unused code, suspicious constructs | linter config, warnings treated as errors | Error Prone, ESLint, ruff, clippy, staticcheck, Roslyn analyzers, Credo |
+| Type and null checks | baseline | null/undefined access, wrong types | strict mode in config, type checker in CI | NullAway, `tsc --noEmit` / `checkJs`, mypy/pyright, Kotlin/Rust/Go compilers |
+| Architecture rules | evidence | wrong layer or module dependencies, logic coupled to framework | rule tests or dependency config | ArchUnit, dependency-cruiser, import-linter, go-arch-lint, NetArchTest; a guard test that greps imports |
+| Consistency tests | evidence | forgotten registration, resource, translation, protocol field, config key | tests that compare declarations with their counterparts | test that every registered item has its resource files; message types of sender and receiver match |
+| Generators | evidence | handwritten derived files drift or break | generator task in the build | data generation, OpenAPI/protobuf codegen, schema-driven code |
+| Custom static rules | evidence | project conventions and recurring API misuse; agent-specific habits (new suppressions, skipped tests) | rule files in the repo | Semgrep, ast-grep, CodeQL, custom lint rules |
+| Hermetic tests | evidence | flaky tests from fixed waits, real time, network, unseeded randomness; retries that hide them | rule against sleeps/waits, injected clock, retries 0 locally | a static rule banning `sleep`/`waitForTimeout` in tests; `Clock`/fake timers; seeded RNG |
+| Mutation testing | evidence | weak tests that pass without checking behaviour | periodic job with a score | PIT, Stryker, mutmut, cargo-mutants, go-mutesting |
+| Single version source | baseline | version drift between manifest, code, docs | one declared version, others derived or checked | build property read at runtime, bump script, consistency test |
+| Changelog from commits | baseline | forgotten or inconsistent release notes | tool config, commit message lint | git-cliff, changesets, commitlint |
+| Dependency hygiene | baseline | unused or vulnerable dependencies, outdated runtimes | analyzer or update bot | knip, depcheck, cargo-udeps, deptry, Dependabot, Renovate |
+| Security scans | baseline | injection, secrets in code, vulnerable dependencies | SAST/SCA job | Semgrep rule packs, CodeQL, gitleaks, dependency audit |
+| Line ending policy | baseline | whole-file diffs, broken scripts on another OS | `.gitattributes` | `* text=auto`, `*.sh eol=lf` |
 
 Check before adopting: compatibility with the language and build tool version, build plugins that configure the compiler, the support status of CI runtimes.
 

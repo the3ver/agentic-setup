@@ -56,5 +56,21 @@ expect 'no \.gitattributes'
 absent 'awk: '
 [ "$(grep -c '^- AGENTS\.md' <<<"$out")" -eq 0 ] || { echo "AGENTS.md counted twice"; fail=1; }
 
+# A fresh repo (one commit, no tags, no repairs) must still produce a complete inventory
+fresh=$(mktemp -d)
+trap 'rm -rf "$repo" "$fresh"' EXIT
+(cd "$fresh" && git init -q -b main && git config user.email t@example.com && git config user.name t \
+  && printf 'fn main() {}\n' > main.rs && printf '[package]\nname = "x"\n' > Cargo.toml \
+  && git add -A && git commit -q -m "initial commit")
+out=$(bash "$inv" "$fresh" 2>&1)
+status=$?
+[ $status -eq 0 ] || { echo "fresh repo: exit $status instead of 0"; fail=1; }
+expect 'Repair commits: 0 of 1'
+expect 'no tags'
+expect '\| rs \| 1 \|'
+expect 'Cargo\.toml'
+expect '## Noise sources'
+absent 'awk: |fatal:'
+
 if [ $fail -eq 0 ]; then echo "SMOKE OK"; else echo "--- output ---"; echo "$out"; fi
 exit $fail
