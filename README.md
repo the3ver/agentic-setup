@@ -29,3 +29,7 @@ Jeder gefundene Fehler im Inventar bekommt zuerst eine Erwartung in `tests/smoke
 Voraussetzungen: Git Bash oder ein anderes Bash, Git, Python 3 (für JSON).
 
 Der Skill legt Ergebnisse in einem Markdown-Gedächtnis ab, wenn eines per MCP angebunden ist (Tools `memory_search`, `memory_update`, z. B. ein Obsidian-Vault). Ohne Gedächtnis gibt er Bestandsaufnahme und Plan nur in der Antwort aus.
+
+## Lizenz
+
+MIT, siehe [LICENSE](LICENSE).
