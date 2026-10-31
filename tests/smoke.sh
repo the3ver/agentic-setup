@@ -45,12 +45,13 @@ commit "feat(parser): fix race finish bug, add empty check"
 git tag v1.2.3
 # Version moves past the tag in the manifest only; README keeps the old value
 printf '[project]\nname = "fixture"\nversion = "1.2.4"\n' > pyproject.toml
-printf '{"name": "fixture", "version": "1.2.4"}\n' > package.json
+printf '{"name": "fixture", "version": "1.2.4", "scripts": {"test": "pytest -q", "lint": "ruff check ."}}\n' > package.json
 commit "chore(release): 1.2.4"
 git switch -q -c stranded && git commit -q --allow-empty -m "fix: stranded repair" && git switch -q main
 mkdir -p build && printf 'artefact' > build/out.bin
 printf '{"iban": "x"}' > config.json
 mkdir -p .agents && printf '# local agent notes\n' > .agents/AGENTS.md
+mkdir -p .claude && printf '{\n  "permissions": {\n    "deny": [\n      "Read(./logs/**)",\n      "Bash(git push --force:*)"\n    ]\n  }\n}\n' > .claude/settings.local.json
 
 out=$(bash "$inv" . 2>&1)
 status=$?
@@ -69,7 +70,12 @@ expect 'Binary files changed by repair commits: 1'
 expect 'unmerged: stranded'
 expect 'Latest tag: v1\.2\.3-1-.*\(HEAD is past the tag\)'
 expect 'Current version: 1\.2\.4, declared in: .*pyproject\.toml'
-expect 'Manifest versions: .*package\.json 1\.2\.4.*package-lock\.json 0\.1\.0'
+expect 'Manifest versions: .*package\.json 1\.2\.4.*package-lock\.json 0\.1\.0.*pyproject\.toml 1\.2\.4'
+expect '^- npm script test: pytest -q'
+expect '^- npm script lint: ruff check \.'
+expect 'settings\.local\.json: hooks: -, deny rules: 2'
+# Needs only bash, git and coreutils/awk: no Python
+! grep -qE '(^|[ ($])(python3?|py) |"\$py"' "$inv" || { echo "inventory.sh still uses Python"; fail=1; }
 expect 'MISMATCH: manifests and lockfiles disagree'
 expect 'MISMATCH: other versions of the 1\.2 family'
 expect '^  - 1\.2\.3 in README\.md'

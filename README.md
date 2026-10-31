@@ -27,7 +27,7 @@ bash tests/smoke.sh
 
 Every bug found in the inventory first gets an expectation in `tests/smoke.sh`. Test runs against real repos produce reports; their findings feed into `SKILL.md`, `CATALOG.md` and `inventory.sh`.
 
-Requirements: Git Bash or another bash, git, Python 3 (for JSON).
+Requirements: git and a bash with coreutils and awk (Git Bash on Windows). No Python, Node or jq.
 
 The skill needs no notes system. It prints the inventory and plan in its answer and leaves the analysed repo unchanged. To keep reports, name the place in your own instructions (for example in `~/.claude/CLAUDE.md`: "Save agentic setup reports in `<path>`"); the skill then follows them. The report is written in the user's language.
 

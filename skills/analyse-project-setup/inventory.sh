@@ -11,7 +11,6 @@ git rev-parse --git-dir >/dev/null 2>&1 || { echo "Not a git repo: $(pwd)"; exit
 files() { git ls-files; }
 # Text files only (git marks binaries as -text in the index)
 textfiles() { git ls-files --eol | awk '$1 != "i/-text" {print $NF}'; }
-py=$(command -v python || command -v python3)
 size() { local b; b=$(wc -c < "$1"); echo "$(wc -l < "$1") lines, $((b / 1024)) KB, ~$((b / 4)) tokens"; }
 
 echo "# Inventory $(basename "$(pwd)")"
@@ -93,9 +92,10 @@ echo "Commands an agent can call:"
 # Task runner targets, npm scripts, shell scripts, commands documented for humans
 [ -f Makefile ] && echo "- make targets: $(grep -oE '^[A-Za-z0-9_.-]+:' Makefile | tr -d ':' | sort -u | head -15 | tr '\n' ' ')"
 for j in justfile Justfile; do [ -f "$j" ] && echo "- just recipes: $(grep -oE '^[A-Za-z0-9_-]+( [^:]*)?:' "$j" | cut -d' ' -f1 | tr -d ':' | head -15 | tr '\n' ' ')"; done
-if [ -f package.json ] && [ -n "$py" ]; then
-  s=$("$py" -c "import json; d=json.load(open('package.json',encoding='utf-8')); [print(f'{k}: {v}') for k,v in d.get('scripts',{}).items()]" 2>/dev/null | tr -d '\r')
-  [ -n "$s" ] && sed 's/^/- npm script /' <<<"$s"
+# JSON without a parser: join the lines first, so one-line and multi-line objects look the same
+if [ -f package.json ]; then
+  tr -d '\r\n' < package.json | grep -oE '"scripts" *: *\{[^}]*\}' | sed -E 's/^"scripts" *: *\{//' \
+    | grep -oE '"[^"]+" *: *"([^"\\]|\\.)*"' | sed -E 's/^"([^"]+)" *: *"(.*)"$/- npm script \1: \2/'
 fi
 files | grep -E '^([^/]+|scripts/[^/]+)\.(sh|bat|cmd|ps1)$' | head -10 | sed 's/^/- script: /'
 # Commands documented for humans: shell lines in fenced blocks of README/CONTRIBUTING/AGENTS that build or test
@@ -149,7 +149,8 @@ for f in "$HOME/.claude/CLAUDE.md" CLAUDE.md AGENTS.md GEMINI.md .agents/AGENTS.
     [ -e "$imp" ] && echo "  - imports $imp ($(size "$imp"))" || echo "  - imports $imp (missing)"
   done
 done
-denycount() { "$py" -c "import json,sys; print(len(json.load(open(sys.argv[1],encoding='utf-8')).get('permissions',{}).get('deny',[])))" "$1" 2>/dev/null || echo "?"; }
+# Strings inside the deny array; the first match is the key "deny" itself
+denycount() { tr -d '\r\n' < "$1" | grep -oE '"deny" *: *\[[^]]*\]' | grep -oE '"([^"\\]|\\.)*"' | tail -n +2 | grep -c .; }
 for f in .claude/settings.json .claude/settings.local.json "$HOME/.claude/settings.json"; do
   [ -e "$f" ] || continue
   ev=$(grep -oE '"(PreToolUse|PostToolUse|Stop|SubagentStop|UserPromptSubmit|SessionStart)"' "$f" | sort -u | tr -d '"' | tr '\n' ' ')
@@ -171,42 +172,27 @@ echo "## Version"
 desc=$(git describe --tags 2>/dev/null)
 echo "- Latest tag: ${desc:-none}$([ -n "$desc" ] && [ "$desc" != "$(git describe --tags --abbrev=0 2>/dev/null)" ] && echo ' (HEAD is past the tag)')"
 # Root manifests and lockfiles always with their value: drift there can lie outside the version family
-mv=$("$py" - 2>/dev/null <<'EOF' | tr -d '\r'
-import json, os
-try:
-    import tomllib
-except ImportError:
-    tomllib = None
-vals = []
-for f in ("package.json", "package-lock.json", "composer.json", "deno.json"):
-    try:
-        d = json.load(open(f, encoding="utf-8"))
-    except Exception:
-        continue
-    v = d.get("version")
-    if isinstance(v, str):
-        vals.append(f"{f} {v}")
-    pk = d.get("packages")
-    root = pk.get("", {}).get("version") if isinstance(pk, dict) else None
-    if isinstance(root, str) and root != v:
-        vals.append(f'{f}:packages[""] {root}')
-for f, keys in (("pyproject.toml", (("project",), ("tool", "poetry"))), ("Cargo.toml", (("package",),))):
-    if tomllib is None or not os.path.exists(f):
-        continue
-    try:
-        d = tomllib.load(open(f, "rb"))
-    except Exception:
-        continue
-    for k in keys:
-        t = d
-        for p in k:
-            t = t.get(p, {}) if isinstance(t, dict) else {}
-        v = t.get("version") if isinstance(t, dict) else None
-        if isinstance(v, str):
-            vals.append(f"{f} {v}")
-            break
-print("\n".join(vals))
-EOF
+# JSON: the first "version" key is the top-level one in these manifests; npm v2+ lockfiles repeat the
+# root version under packages[""]. TOML: "version =" inside the named table.
+jsonver() { tr -d '\r\n' < "$1" | grep -oE "$2\"version\" *: *\"[^\"]+\"" | head -1 | sed -E 's/.*"([^"]+)"$/\1/'; }
+tomlver() {
+  awk -v want="$2" '/^\[/ { sec = $0; gsub(/[][ \t\r]/, "", sec); next }
+    sec == want && /^version *=/ { sub(/^version *= *"/, ""); sub(/".*$/, ""); print; exit }' "$1"
+}
+mv=$(
+  for f in package.json package-lock.json composer.json deno.json; do
+    [ -f "$f" ] || continue
+    v=$(jsonver "$f" '')
+    [ -n "$v" ] && echo "$f $v"
+    r=$(jsonver "$f" '"packages" *: *\{ *"" *: *\{[^}]*')
+    [ -n "$r" ] && [ "$r" != "$v" ] && echo "$f:packages[\"\"] $r"
+  done
+  for spec in pyproject.toml:project pyproject.toml:tool.poetry Cargo.toml:package; do
+    f=${spec%%:*}
+    [ -f "$f" ] || continue
+    v=$(tomlver "$f" "${spec#*:}")
+    [ -n "$v" ] && echo "$f $v" && [ "$f" = pyproject.toml ] && break
+  done
 )
 if [ -n "$mv" ]; then
   echo "- Manifest versions: $(tr '\n' ',' <<<"$mv" | sed 's/,$//; s/,/, /g')"
