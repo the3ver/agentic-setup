@@ -140,7 +140,7 @@ if [ -e package.json ]; then
   code=$(files | grep -E '\.(m?js|cjs|ts|tsx|vue|svelte|html)$')
   unused=""
   for d in $deps; do
-    echo "$code" | tr '\n' '\0' | xargs -0 grep -qE "(from|require\(|import\() *['\"]$d['\"/]" 2>/dev/null && continue
+    echo "$code" | tr '\n' '\0' | xargs -0 grep -qE "(from|require\(|import\() *['\"]${d}['\"/]" 2>/dev/null && continue
     grep -qE "(^|[\" &;])${d##*/}( |\"|$)|${d#@}" <<<"$scripts" && continue
     [ "$d" = "@playwright/test" ] && grep -q playwright <<<"$scripts" && continue
     unused="$unused $d"

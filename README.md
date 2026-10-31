@@ -21,6 +21,7 @@ claude plugin install agentic-setup@agentic-setup
 ## Entwicklung
 
 ```bash
+uvx --from shellcheck-py shellcheck -S error skills/analyse-project-setup/inventory.sh tests/smoke.sh
 bash tests/smoke.sh
 ```
 
