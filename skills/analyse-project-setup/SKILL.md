@@ -1,74 +1,76 @@
 ---
 name: analyse-project-setup
-description: Analysiert das Agentic-Coding-Setup eines Repos und schlägt deterministische Werkzeuge vor (Hooks, Linter, Architektur- und Mutationstests, CI), die Qualität sichern und LLM-Tokens sparen. Liefert Bestandsaufnahme und Phasenplan, setzt nichts um.
+description: Analyses a repo's agentic coding setup and proposes deterministic tools (hooks, linters, architecture and mutation tests, CI) that protect quality and save LLM tokens. Produces an inventory and a phased plan; changes nothing.
 disable-model-invocation: true
 ---
 
-# Projekt-Setup analysieren
+# Analyse project setup
 
-Ziel: Der Agent soll im Repo *Backpressure* bekommen. Deterministische Sensoren melden Fehler sofort, grüne Läufe kosten eine Zeile Kontext, mechanische Arbeit erledigen Skripte statt das LLM. Ergebnis ist ein Plan, keine Umsetzung.
+Goal: give the agent *backpressure* in this repo. Deterministic sensors report failures immediately, a green run costs one line of context, and scripts do mechanical work instead of the LLM. The result is a plan, not an implementation.
 
-Das Schichtenmodell, den Werkzeugkatalog je Stack und die Token-Techniken findest du in [CATALOG.md](CATALOG.md). Lies ihn vor Schritt 4.
+The layer model, the tool catalog per stack and the token techniques are in [CATALOG.md](CATALOG.md). Read it before step 4.
 
-## 1. Vorwissen holen
+Write the report in the user's language.
 
-- Projektdoku im Repo: README, CLAUDE.md/AGENTS.md, CONTRIBUTING, CONTEXT.md, `docs/adr/`. Architekturregeln, Stolperfallen und Releaseablauf stehen oft nur dort.
-- Projektwissen außerhalb des Repos, falls die Umgebung welches anbietet (Notizen, ein Gedächtnis per MCP, Tickets). Wo es liegt, sagen die Anweisungen des Nutzers; ohne solche Quelle diesen Punkt überspringen.
-- Einen *Agentic-Setup*-Bericht aus einem früheren Lauf erst nach Schritt 2 lesen, damit er den frischen Blick nicht vorprägt.
-- Ist eine Suche in früheren Sessions verfügbar: nach dem Repo-Namen und nach Stichworten wie `flaky`, `rot`, `vergessen`, `Regression`. Werte nur Treffer aus, deren `cwd` im Repo liegt, und lass die eigene Session sowie frühere Läufe dieses Skills weg (ihr Text enthält die Suchwörter selbst). Wiederkehrende Pannen aus früheren Sessions (rote Builds, vergessene Dateien, Flaky-Tests) sind die besten Kandidaten für neue Regeln.
-- Die Zeilen `Panne?` und `ungemergt` aus dem Inventar (Schritt 2) gehören ebenfalls in diese Liste.
+## 1. Gather prior knowledge
 
-Fertig, wenn du eine Liste *Pannen und ungeschriebene Regeln* mit Quelle hast (darf leer sein).
+- Project docs in the repo: README, CLAUDE.md/AGENTS.md, CONTRIBUTING, CONTEXT.md, `docs/adr/`. Architecture rules, pitfalls and the release process often live only there.
+- Project knowledge outside the repo, if the environment offers any (notes, a memory MCP server, tickets). The user's instructions say where it lives; skip this point when there is no such source.
+- Read an *Agentic setup* report from an earlier run only after step 2, so it does not bias the fresh look.
+- If a search over past sessions is available: search for the repo name and for keywords such as `flaky`, `red`, `forgot`, `regression`. Only count hits whose `cwd` lies in the repo, and leave out the current session and earlier runs of this skill (their text contains the keywords). Recurring failures from past sessions (red builds, forgotten files, flaky tests) are the best candidates for new rules.
+- The `Failure?` and `unmerged` lines from the inventory (step 2) belong in this list too.
 
-## 2. Inventar ziehen
+Done when you have a list of *failures and unwritten rules* with their source (it may be empty).
 
-`inventory.sh` liegt im selben Ordner wie diese SKILL.md (beim Laden als Basisverzeichnis des Skills angegeben):
+## 2. Take the inventory
+
+`inventory.sh` sits in the same folder as this SKILL.md (given as the skill's base directory when it loads):
 
 ```bash
-bash <skill-ordner>/inventory.sh <repo-pfad>
+bash <skill-dir>/inventory.sh <repo-path>
 ```
 
-Das Skript liefert Git-Stand, Stack, Tests, Codegröße, gefundene Qualitätswerkzeuge, CI-Workflows, Agenten-Konfiguration (Größe in Tokens, auch importierte Dateien), Versionsstellen und Lärmquellen. Es erkennt Werkzeuge nur an Konfigurationsdateien und Mustern: ein "-" heißt "nicht gefunden", nicht "gibt es sicher nicht".
+The script reports git state, stack, tests, code size, quality tools found, CI workflows, agent configuration (size in tokens, including imported files), version locations and noise sources. It detects tools only by config files and patterns: "-" means "not found", not "certainly absent".
 
-Danach den schnellsten Prüfbefehl des Repos (Test-Script, `gradlew check` o. ä.) einmal laufen lassen und Dauer, Exit-Code und Ausgabezeilen messen: `time <befehl> 2>&1 | wc -l`. Miss genau den Befehl, den ein Agent heute aufruft (z. B. `npm test` ohne Zusatzflags): Ein knapperer Reporter beschönigt den Ist-Stand und unterschätzt den Gewinn eines Check-Wrappers. Das beantwortet Prüffrage 1. Läuft er länger als 2 Minuten, im Hintergrund starten. Danach mit `git status` sicherstellen, dass der Lauf keine versionierten Dateien verändert hat.
+Then run the repo's fastest check command once (test script, `gradlew check` or similar) and measure duration, exit code and output lines: `time <command> 2>&1 | wc -l`. Measure exactly the command an agent runs today (for example plain `npm test`): a terser reporter flatters the current state and underestimates what a check wrapper gains. This answers check question 1. Run it in the background if it takes longer than 2 minutes. Afterwards confirm with `git status` that the run changed no tracked files.
 
-Nimm beides als Faktenbasis und lies nur gezielt nach, wo eine Frage offen bleibt:
+Use both as the factual basis and read further only where a question stays open:
 
-- Build-Datei(en), um Plugins und Testkonfiguration zu verstehen.
-- Den Haupt-CI-Workflow.
-- CLAUDE.md/AGENTS.md und `.claude/settings*.json`.
-- 2 bis 3 typische Quell- und Testdateien, um Muster zu erkennen (z. B. "reine Logik-Klassen ohne Framework-Import"). Jedes erkennbare Muster ist eine Architekturregel, die heute nur im Kopf existiert.
+- Build file(s), to understand plugins and test configuration.
+- The main CI workflow.
+- CLAUDE.md/AGENTS.md and `.claude/settings*.json`.
+- 2 to 3 typical source and test files, to spot patterns (for example "pure logic classes without framework imports"). Every visible pattern is an architecture rule that today exists only in someone's head.
 
-Fertig, wenn jede Zeile des Schichtenmodells und jede Zeile der Werkzeugtabelle für diesen Stack (CATALOG.md) einen Ist-Stand hat: vorhanden, teilweise oder fehlt.
+Done when every row of the layer model and every row of the tool table for this stack (CATALOG.md) has a current state: present, partial or missing.
 
-## 3. Recherche, nur bei Lücken
+## 3. Research, only for gaps
 
-Recherchiere im Netz nur, was CATALOG.md für diesen Stack nicht abdeckt: unbekanntes Framework, unklare Kompatibilität eines Werkzeugs mit der verwendeten Sprach- oder Build-Version. Jede Kompatibilitätsfrage, die offen bleibt, wandert als "zu prüfen" in den Plan. Gibt es keine Lücke, steht im Plan "keine Recherche nötig".
+Search the web only for what CATALOG.md does not cover for this stack: an unknown framework, unclear compatibility of a tool with the language or build version in use. Every compatibility question that stays open goes into the plan as "to verify". If there is no gap, the plan says "no research needed".
 
-## 4. Lückenanalyse
+## 4. Gap analysis
 
-Gehe Schichtenmodell und Werkzeugtabelle Zeile für Zeile durch und halte je Zeile fest: Ist-Stand, Lücke, konkreter Vorschlag mit Werkzeug und Ort (Hook, Build, CI). Prüfe zusätzlich jede Frage aus dem Abschnitt *Prüffragen* in CATALOG.md.
+Walk through the layer model and the tool table row by row and record for each row: current state, gap, concrete proposal with tool and place (hook, build, CI). Also answer every question in the *Check questions* section of CATALOG.md.
 
-Jeder Vorschlag nennt:
-- welche Panne oder welches Risiko er abfängt (aus Schritt 1 oder 2),
-- wo er läuft und wie lange er dauert,
-- ob er Tokens spart, Qualität sichert oder beides.
+Each proposal states:
+- which failure or risk it catches (from step 1 or 2),
+- where it runs and how long it takes,
+- whether it saves tokens, protects quality, or both.
 
-Fertig, wenn jede Schicht und jede Prüffrage bewertet ist und jede Panne aus Schritt 1 einem Vorschlag zugeordnet ist.
+Done when every layer and every check question is assessed and every failure from step 1 maps to a proposal.
 
-## 5. Plan schreiben
+## 5. Write the plan
 
-Phasen nach Aufwand und Nutzen:
-- **P0** sofort, je unter einer Stunde: quiet Check-Wrapper (Build und/oder Tests) + Stop-Hook, Deny-Regeln für Lärmquellen, eine Versionsquelle, eine erste Architekturregel.
-- **P1** Qualität im Loop: Formatter-Hook, Compiler-Checks, Konsistenztests, Semgrep lokal + CI.
-- **P2** tiefer: Mutation Testing periodisch, Generatoren statt LLM-Handarbeit, Changelog aus Commits, Review-Subagent mit Guidelines, Dependabot, Branch-Schutz.
-- **P3** Generalisierung: einheitliche Verben (`fmt`, `check`, `test-fast`, `test`), wiederverwendbare Bausteine.
+Phases by effort and benefit:
+- **P0** now, each under an hour: quiet check wrapper (build and/or tests) + Stop hook, deny rules for noise sources, a single version source, a first architecture rule.
+- **P1** quality in the loop: formatter hook, compiler checks, consistency tests, Semgrep locally + CI.
+- **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, Dependabot, branch protection.
+- **P3** generalisation: uniform verbs (`fmt`, `check`, `test-fast`, `test`), reusable building blocks.
 
-Ergebnis ist ein Markdown-Bericht mit der Überschrift *Agentic-Setup (Stand <Datum>)*: Bestandsaufnahme als Tabelle, Plan P0 bis P3, offene Prüfpunkte, Quellen der Recherche.
+The result is a Markdown report headed *Agentic setup (as of <date>)*: inventory as a table, plan P0 to P3, open points to verify, research sources.
 
-Ablage:
-- Der Bericht steht immer vollständig in der Antwort.
-- Gespeichert wird er dort, wo die Anweisungen des Nutzers Projektwissen ablegen (CLAUDE.md/AGENTS.md, Notizsystem). Gibt es keine solche Anweisung, nur an einem Ort, den der Nutzer nennt; das Ziel-Repo bleibt unverändert.
-- Liegt dort schon ein Bericht aus einem früheren Lauf: ersetzen statt ergänzen, bereits umgesetzte Punkte als erledigt übernehmen.
+Storage:
+- The full report always appears in the answer.
+- It is saved where the user's instructions keep project knowledge (CLAUDE.md/AGENTS.md, notes system). Without such an instruction, only in a place the user names; the target repo stays unchanged.
+- If a report from an earlier run is already there: replace it instead of appending, and carry over points already implemented as done.
 
-Zum Schluss: Hat das Repo uncommittete Änderungen, darauf hinweisen: Tooling-Änderungen erst nach einem sauberen Commit. Im Dialog mit dem Nutzer fragen, mit welcher Phase es losgeht; als gestartete Session nur berichten.
+Finally: if the repo has uncommitted changes, point out that tooling changes should follow a clean commit. In a dialogue with the user, ask which phase to start with; when started by another session, only report.
