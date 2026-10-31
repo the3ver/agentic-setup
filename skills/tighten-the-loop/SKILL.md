@@ -73,7 +73,12 @@ For each gap (missing baseline concept or uncaught failure class), pick a determ
 Every proposal states:
 - the reason: *baseline*, or the failure class with its evidence (commit hashes), or *preventive, no evidence yet*,
 - tool and concrete configuration for this repo: which rule or check, where it runs (hook, build task, CI job), how existing violations are handled (fix now, baseline, changed lines only), autofix where the tool offers one,
-- cost and benefit: duration per run, output when green, tokens saved or quality gained.
+- the goal in one sentence: what the measure prevents or makes cheaper for the agent,
+- the effect, named by mechanism and rated *low*, *medium* or *high*, with the measured or estimated number behind the rating:
+  - **tokens:** why fewer tokens: less output read per check (green as one line instead of N lines), fewer repair turns (the failure stops the turn instead of surfacing commits later), less noise read (denied folders), less handwork (generator or script instead of LLM). *High* = saves tokens in every turn or removes whole repair turns; *medium* = saves per check run or per occurrence of a recurring class; *low* = rare or a few hundred tokens,
+  - **code quality:** which failure class it stops and at which layer, judged by how often the class occurred (repair commits) and how much a slip costs. *High* = a class with several repairs or fix chains; *medium* = a class seen once or a typical class of the stack; *low* = preventive hygiene,
+  - a measure may score on both axes or on only one; say "none" for the other,
+- cost: setup effort, duration per run, output when green.
 
 ## 5. Write the plan
 
@@ -85,7 +90,7 @@ Phases by effort and benefit:
 Bundle what depends on one decision: without CI, "CI parity", dependency updates and branch protection are one proposal ("add CI"), not three separate gaps.
 - **P3** generalisation: uniform verbs (`fmt`, `check`, `test-fast`, `test`) as reusable entry points.
 
-The result is a Markdown report. Its heading is always the English `## Agentic setup`, whatever the report language, so a later run finds and replaces it; the first line below states the date and the skill version. Contents: pipeline per layer as a table (current state, cost, gaps), failure classes with evidence and fix chains, plan P0 to P3 with configurations, open points to verify, research sources.
+The result is a Markdown report. Its heading is always the English `## Agentic setup`, whatever the report language, so a later run finds and replaces it; the first line below states the date and the skill version. Contents: pipeline per layer as a table (current state, cost, gaps), failure classes with evidence and fix chains, plan P0 to P3 with configurations, an overview table of all measures (measure, goal, tokens low/medium/high with mechanism, quality low/medium/high with failure class, effort, phase), open points to verify, research sources.
 
 Storage:
 - The full report always appears in the answer.
