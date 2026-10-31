@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stack-independent inventory of a repo's agent pipeline for analyse-project-setup.
+# Stack-independent inventory of a repo's agent pipeline for tighten-the-loop.
 # Collects mechanical facts only (git history, pipeline entry points, CI, agent config, noise);
 # interpreting the stack and choosing tools is left to the agent.
 # Usage: bash inventory.sh [repo-path] [history-depth]. Output: compact Markdown on stdout.

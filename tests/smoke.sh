@@ -3,7 +3,7 @@
 # The fixture is deliberately neither Java nor JavaScript: the script must stay stack-independent.
 # Usage: bash tests/smoke.sh   (exit 0 = all checks green)
 set -uo pipefail
-inv="$(cd "$(dirname "$0")/.." && pwd)/skills/analyse-project-setup/inventory.sh"
+inv="$(cd "$(dirname "$0")/.." && pwd)/skills/tighten-the-loop/inventory.sh"
 repo=$(mktemp -d)
 trap 'rm -rf "$repo"' EXIT
 

@@ -1,10 +1,10 @@
 ---
-name: analyse-project-setup
+name: tighten-the-loop
 description: Assesses a repo's pipeline (edit, end of turn, commit, CI) for the coding agent and proposes deterministic tools, configured for this project, that make agent builds cheaper in tokens and better in code quality. Works for any stack. Produces an assessment and a phased plan; changes nothing.
 disable-model-invocation: true
 ---
 
-# Analyse project setup
+# Tighten the loop
 
 Goal: give the coding agent *backpressure*. The pipeline should report failures deterministically and early, cost one line of context when green, and leave mechanical work to scripts. The subject is the **pipeline**, not the code: what runs at which layer, what it costs, and which failure classes slip through it.
 

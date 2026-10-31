@@ -6,9 +6,9 @@ Claude Code plugin that assesses a repo's pipeline for coding agents (edit, end 
 
 | Path | Purpose |
 |---|---|
-| `skills/analyse-project-setup/SKILL.md` | Procedure: map the pipeline, mine the history for failure classes, assess, choose and configure tools, plan P0 to P3. Invoked only via `/analyse-project-setup` |
-| `skills/analyse-project-setup/inventory.sh` | Stack-independent facts: git state, repair commits and hotspots, file types, build manifests, task entry points, commit hooks, CI, agent configuration, version locations, noise folders |
-| `skills/analyse-project-setup/CATALOG.md` | Layer model, concepts mapped from failure class to tool (examples across ecosystems), token techniques, check questions |
+| `skills/tighten-the-loop/SKILL.md` | Procedure: map the pipeline, mine the history for failure classes, assess, choose and configure tools, plan P0 to P3. Invoked only via `/tighten-the-loop` |
+| `skills/tighten-the-loop/inventory.sh` | Stack-independent facts: git state, repair commits and hotspots, file types, build manifests, task entry points, commit hooks, CI, agent configuration, version locations, noise folders |
+| `skills/tighten-the-loop/CATALOG.md` | Layer model, concepts mapped from failure class to tool (examples across ecosystems), token techniques, check questions |
 | `tests/smoke.sh` | Builds a throwaway Python repo with known history and checks the output of `inventory.sh` |
 
 ## Installation
@@ -21,7 +21,7 @@ claude plugin install agentic-setup@agentic-setup
 ## Development
 
 ```bash
-uvx --from shellcheck-py shellcheck -S error skills/analyse-project-setup/inventory.sh tests/smoke.sh
+uvx --from shellcheck-py shellcheck -S error skills/tighten-the-loop/inventory.sh tests/smoke.sh
 bash tests/smoke.sh
 ```
 
