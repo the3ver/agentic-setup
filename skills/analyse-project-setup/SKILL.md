@@ -32,9 +32,9 @@ From these facts and the files they point to, identify:
 - **The check command** an agent would use today: a task runner target or npm script if there is one, else the command documented in README/AGENTS.md (the inventory lists both), else the framework's default. Run it once and measure duration, exit code and output lines:
   `time <command> > <scratch>/check.out 2>&1; echo "exit=$?"; wc -l < <scratch>/check.out`
   Measure the command as an agent calls it, not with a terser reporter; if one flag changes the line count a lot (for example `-v`), report both numbers. Run it in the background if it takes longer than 2 minutes.
-- **Baseline tools, measured read-only:** for each baseline concept that is missing, run the stack's usual tool once with default rules through a throwaway runner (`uvx`, `npx --yes`, `pnpm dlx`, `go run`, `dotnet tool exec` or similar) in check mode. The finding counts decide in step 4 how to handle existing violations. Keep caches outside the repo (`--no-cache`, `--cache-dir <scratch>`).
+- **Baseline tools, measured read-only:** for each baseline concept that is missing, run the stack's usual tool once with default rules through a throwaway runner (`uvx`, `npx --yes`, `pnpm dlx`, `go run`, `dotnet tool exec` or similar) in check mode. Use the tool's summary or count output (CATALOG.md field notes), not the full listing. For formatters, measure a second time with the style options the code already follows (quotes, line width, semicolons): only that count shows the real churn. The finding counts decide in step 4 how to handle existing violations. Keep caches outside the repo (`--no-cache`, `--cache-dir <scratch>`).
 
-After any command: compare `git status --porcelain --ignored` with the state before and remove what the run created. The skill changes nothing in the target repo.
+Before and after any command: record `git status --porcelain --ignored --untracked-files=all` (without `--untracked-files=all`, new files inside an already ignored folder stay invisible), then remove what the run created and restore changed tracked files with `git checkout -- <path>`. If the check command itself changes tracked files (screenshots, snapshots, reports), that is a finding: the tests are not hermetic. The skill changes nothing in the target repo.
 
 Done when every layer of the model has a current state (present, partial, missing), the check command has measured numbers, and every missing baseline tool has a finding count or a reason why it could not run.
 
@@ -43,14 +43,16 @@ Done when every layer of the model has a current state (present, partial, missin
 The repair commits from the inventory are the evidence of what the pipeline lets through. For each repair commit (all of them up to about 30, otherwise the most recent 30 plus the hotspots):
 - read its diff (`git show --stat <hash>`, then the relevant hunks),
 - name the **failure class** (for example: unformatted code, null/undefined access, wrong layer dependency, forgotten registration or resource, flaky test from fixed waits or real time, version drift, broken CI config, missing translation),
-- find the commit that introduced the defect (`git log -L <range>:<file> <fix>^` or `git blame <fix>^ -- <file>`). When the introducing commit is itself a repair, you have a **fix chain**: nothing checked between the two commits. Report fix chains; they are the strongest argument for layer 2,
-- decide whether a deterministic tool would have caught it, and at which layer. Where cheap, prove it: run the proposed tool on the introducing state (`git show <commit>:<file>` into the scratch folder) and note whether it fails.
+- find the commit that introduced the defect (`git log -L <range>:<file> <fix>^` or `git blame <fix>^ -- <file>`). When the introducing commit is itself a repair, you have a **fix chain**: nothing checked between the two commits. Report fix chains; they are the strongest argument for layer 2. Also report the same feature or code region repaired several times, even without a strict chain. For a bundled fix (many topics, many files) assign only the hunks you can, and say which part stays unassigned,
+- decide whether a deterministic tool would have caught it, and at which layer. Where cheap, prove it: run the proposed tool on the introducing state and note whether it fails. A single file (`git show <commit>:<file>`) suffices for formatters and linters; tools that need the module graph (type checkers, compilers) need the tree: `git archive <commit> <dirs> | tar -x -C <scratch>`.
+
+The inventory marks repairs hidden in other commit types ("feat: fix lap bug, add selector") as `[embedded repair]`; treat them like any repair.
 
 Search the current code for a pattern only to configure a rule for a failure class you have evidence or a preventive reason for: count existing occurrences to choose between failing on all, a baseline, or checking only changed lines. Do not scan the code for patterns without such a reason.
 
 With fewer than 3 repair commits this step yields little: say so, and rely on the baseline plus the stack's typical failure classes (research them if needed). The total commit count does not matter.
 
-Further sources for failure classes, if available: the project's docs (README, CLAUDE.md/AGENTS.md, CONTRIBUTING, ADRs), notes systems named in the user's instructions, and past sessions of any coding agent the user's instructions name (only hits whose `cwd` lies in the repo, excluding runs of this skill). If no such source exists, say so in the report. Read an `## Agentic setup` report from an earlier run only after this step, so it does not bias the fresh look.
+Further sources for failure classes, if available: the project's docs (README, CLAUDE.md/AGENTS.md, CONTRIBUTING, ADRs), notes systems named in the user's instructions, and past sessions of a coding agent when the user's instructions name that source together with a way to search it (only hits whose `cwd` lies in the repo, excluding runs of this skill). If no such source exists, say so in the report. Read an `## Agentic setup` report from an earlier run only after this step, so it does not bias the fresh look.
 
 Done when every repair commit you read has a failure class, its introducing commit (or "not found") and a verdict (tool could catch it at layer X / needs judgement / one-off).
 
@@ -76,7 +78,7 @@ Every proposal states:
 ## 5. Write the plan
 
 Phases by effort and benefit:
-- **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class (if the history shows one).
+- **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class or for a class a tool was proven to catch in step 2, whichever fits in an hour (a class that needs a new kind of test goes to P1).
 - **P1** quality in the loop: formatter on edit, compiler/type checks as errors, consistency tests and custom rules for the remaining failure classes, the same checks in CI.
 - **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, dependency updates, branch protection.
 

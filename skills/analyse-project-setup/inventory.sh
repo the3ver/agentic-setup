@@ -33,13 +33,15 @@ echo
 echo "## Failure history (last $depth commits)"
 # Commits that repaired something are the evidence for which failure classes slip through the pipeline
 # Conventional commits count by type (fix, revert, hotfix). Other conventional types count only with a
-# strong keyword ("test: make flaky test deterministic"); free-form subjects also by "fix" and similar words.
+# strong keyword ("test: make flaky test deterministic") or as an embedded repair ("feat: fix lap bug, add x");
+# free-form subjects also by "fix" and similar words.
 strong='revert|hotfix|regress|flaky|broken|forgot|crash|deterministi|wackel|vergessen|kaputt'
 weak='^fix|bug|repair|typo|oops|missing'
 repairs=$(git log -"$depth" --format='%h %s' | awk -v strong="$strong" -v weak="$weak" '{
   h = $1; l = tolower(substr($0, length(h) + 2))
   if (l ~ /^(fix|revert|hotfix)([(][^)]*[)])?!?: /) { print; next }
   if (l ~ strong) { print; next }
+  if (l ~ /^[a-z]+([(][^)]*[)])?!?: / && l ~ /(^|[ ,;:])fix |(^|[^a-z])bugs?([^a-z]|$)/) { print $0 " [embedded repair]"; next }
   if (l !~ /^[a-z]+([(][^)]*[)])?!?: / && l ~ weak) print
 }')
 nall=$(git log -"$depth" --format=%h | wc -l)
@@ -47,9 +49,22 @@ nfix=$(grep -c . <<<"$repairs")
 echo "- Repair commits: $nfix of $nall"
 head -25 <<<"$repairs" | sed 's/^/  - /'
 hashes=$(cut -d' ' -f1 <<<"$repairs")
-touched() { for h in $hashes; do git show --format= --name-only "$h"; done | grep . | grep -viE '(^|/)changelog[^/]*$'; }
+# Text files a repair commit really changed: binaries and version-only bumps are not repairs of that file
+touched() {
+  for h in $hashes; do
+    git show --format= --numstat "$h" | while IFS=$'\t' read -r a d f; do
+      [ "$a" = "-" ] && continue
+      if [ $((a + d)) -le 2 ] && ! git show -U0 --format= "$h" -- "$f" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | grep -viq version; then
+        continue
+      fi
+      echo "$f"
+    done
+  done | grep -viE '(^|/)changelog[^/]*$'
+}
 if [ -n "$hashes" ]; then
-  echo "Files most often touched by repair commits (hotspots, changelogs excluded):"
+  nbin=$(for h in $hashes; do git show --format= --numstat "$h"; done | awk -F'\t' '$1 == "-" {print $3}' | sort -u | grep -c .)
+  [ "$nbin" -gt 0 ] && echo "Binary files changed by repair commits: $nbin (test artefacts written into the repo?)"
+  echo "Files most often touched by repair commits (hotspots; changelogs, binaries and version bumps excluded):"
   touched | sort | uniq -c | sort -rn | head -10 | sed 's/^ */- /'
   echo "Repair-commit file touches per top-level folder:"
   touched | awk -F/ '{print (NF>1 ? $1"/" : "(root)")}' | sort | uniq -c | sort -rn | head -6 | sed 's/^ */- /'
@@ -86,9 +101,14 @@ files | grep -E '^([^/]+|scripts/[^/]+)\.(sh|bat|cmd|ps1)$' | head -10 | sed 's/
 # Commands documented for humans: shell lines in fenced blocks of README/CONTRIBUTING/AGENTS that build or test
 for doc in README.md CONTRIBUTING.md AGENTS.md CLAUDE.md docs/CONTRIBUTING.md; do
   [ -f "$doc" ] || continue
-  awk '/^```/ {inblock = !inblock; next} inblock' "$doc" | grep -vE '[│├└─]' \
+  awk '/^```/ {inblock = !inblock; next} inblock' "$doc" | grep -vE '[│├└─]|^\s*#' \
     | grep -iE '(^|[ /])(test|tests|pytest|unittest|build|check|lint|make|gradlew?|mvn|cargo|go|dotnet|npm|pnpm|yarn|tox|nox)( |$)' \
     | head -4 | sed "s|^|- documented in $doc: |"
+done
+# Test runner settings that hide flaky tests (retries) or change what the agent reads (reporter)
+for c in $(files | grep -E '(^|/)(playwright|vitest|jest|cypress)\.config\.[cm]?[jt]s$' | head -4); do
+  r=$(grep -oE '(retries|fullyParallel|reporter|workers|bail|testTimeout) *: *[^,}]+' "$c" | head -5 | tr '\n' ';')
+  [ -n "$r" ] && echo "- $c: ${r%;}"
 done
 echo "Commit-time hooks:"
 {
@@ -135,6 +155,9 @@ for f in .claude/settings.json .claude/settings.local.json "$HOME/.claude/settin
   ev=$(grep -oE '"(PreToolUse|PostToolUse|Stop|SubagentStop|UserPromptSubmit|SessionStart)"' "$f" | sort -u | tr -d '"' | tr '\n' ' ')
   echo "- ${f/#$HOME/\~}: hooks: ${ev:--}, deny rules: $(denycount "$f")"
 done
+for d in .agents .claude .cursor; do
+  [ -d "$d" ] && git check-ignore -q "$d/" && echo "- $d/ is git-ignored; the agent configuration in it stays on this machine"
+done
 for d in .claude/skills .claude/agents .claude/commands; do [ -d "$d" ] && echo "- $d: $(ls "$d" | tr '\n' ' ')"; done
 src=$(git check-ignore -v .claude/settings.json 2>/dev/null | cut -f1)
 if [ -n "$src" ]; then
@@ -147,6 +170,48 @@ echo
 echo "## Version"
 desc=$(git describe --tags 2>/dev/null)
 echo "- Latest tag: ${desc:-none}$([ -n "$desc" ] && [ "$desc" != "$(git describe --tags --abbrev=0 2>/dev/null)" ] && echo ' (HEAD is past the tag)')"
+# Root manifests and lockfiles always with their value: drift there can lie outside the version family
+mv=$("$py" - 2>/dev/null <<'EOF' | tr -d '\r'
+import json, os
+try:
+    import tomllib
+except ImportError:
+    tomllib = None
+vals = []
+for f in ("package.json", "package-lock.json", "composer.json", "deno.json"):
+    try:
+        d = json.load(open(f, encoding="utf-8"))
+    except Exception:
+        continue
+    v = d.get("version")
+    if isinstance(v, str):
+        vals.append(f"{f} {v}")
+    pk = d.get("packages")
+    root = pk.get("", {}).get("version") if isinstance(pk, dict) else None
+    if isinstance(root, str) and root != v:
+        vals.append(f'{f}:packages[""] {root}')
+for f, keys in (("pyproject.toml", (("project",), ("tool", "poetry"))), ("Cargo.toml", (("package",),))):
+    if tomllib is None or not os.path.exists(f):
+        continue
+    try:
+        d = tomllib.load(open(f, "rb"))
+    except Exception:
+        continue
+    for k in keys:
+        t = d
+        for p in k:
+            t = t.get(p, {}) if isinstance(t, dict) else {}
+        v = t.get("version") if isinstance(t, dict) else None
+        if isinstance(v, str):
+            vals.append(f"{f} {v}")
+            break
+print("\n".join(vals))
+EOF
+)
+if [ -n "$mv" ]; then
+  echo "- Manifest versions: $(tr '\n' ',' <<<"$mv" | sed 's/,$//; s/,/, /g')"
+  [ "$(cut -d' ' -f2 <<<"$mv" | sort -u | wc -l)" -gt 1 ] && echo "- MISMATCH: manifests and lockfiles disagree"
+fi
 # Pass 1: values declared under a bare version key (not loader_version, not a plugin or dependency line,
 # not in tests), as "x.y.z file". "0, 3, 2, 0" (Windows resources) counts as 0.3.2.
 # Pass 2: the project's version family comes from the latest tag, else from the most often declared value;
