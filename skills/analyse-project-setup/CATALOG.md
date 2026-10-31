@@ -62,7 +62,7 @@ Erfahrungen aus mc-3ver (Java 25, Loom, Gradle 9): ArchUnit 1.4.1, Spotless 8.0.
 - Deny-Regeln in `.claude/settings.json` für Build-Ausgaben, Logs, Testreports und Abhängigkeitsordner. Prüfen, ob `.claude/` git-ignoriert ist (oft über `.git/info/exclude`). Dann gelten Hooks und Deny-Regeln nur auf diesem Rechner, nicht für andere Klone oder Cloud-Sessions. Ob `.claude/settings.json` versioniert wird, ist eine Vorbedingung für P0 und eine Entscheidung des Nutzers. `.claude/worktrees/` enthält vollständige Repo-Kopien und gehört in die Deny-Liste.
 - CLAUDE.md/AGENTS.md samt Imports schlank halten: Maßstab sind Bytes, nicht Zeilen (ca. 4 Bytes je Token). Richtwert unter 10 KB, also ca. 2.500 Tokens pro Session, keine Zeilen über 500 Zeichen. Abläufe in Skills, Durchsetzung in Hooks, Nachschlagewissen in verlinkte Dateien.
 - Generatoren und Skripte für wiederkehrende Mechanik. Das LLM schreibt dann nur noch Eingaben, nicht die Ausgaben.
-- Einfache Teilaufgaben delegieren (agy oder Sonnet-Subagent), siehe Vault `topics/ki-delegation-agy`.
+- Einfache Teilaufgaben an ein günstigeres Modell oder einen Subagenten delegieren, Ergebnis gegen Code und Tests prüfen.
 - Wirkung am Gesamtergebnis messen: knapper Kontext kann mehr Suchen nach sich ziehen.
 
 ## Prüffragen

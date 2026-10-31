@@ -14,7 +14,7 @@ Claude-Code-Plugin für Agentic Coding mit deterministischen Werkzeugen. Der Age
 ## Installation
 
 ```bash
-claude plugin marketplace add C:/Users/frank/github/agentic-setup
+claude plugin marketplace add the3ver/agentic-setup
 claude plugin install agentic-setup@agentic-setup
 ```
 
@@ -27,3 +27,5 @@ bash tests/smoke.sh
 Jeder gefundene Fehler im Inventar bekommt zuerst eine Erwartung in `tests/smoke.sh`. Testläufe an echten Repos liefern Berichte; deren Befunde fließen in `SKILL.md`, `CATALOG.md` und `inventory.sh`.
 
 Voraussetzungen: Git Bash oder ein anderes Bash, Git, Python 3 (für JSON).
+
+Der Skill legt Ergebnisse in einem Markdown-Gedächtnis ab, wenn eines per MCP angebunden ist (Tools `memory_search`, `memory_update`, z. B. ein Obsidian-Vault). Ohne Gedächtnis gibt er Bestandsaufnahme und Plan nur in der Antwort aus.
