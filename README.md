@@ -1,15 +1,15 @@
 # agentic-setup
 
-Claude Code plugin for agentic coding with deterministic tools. It gives the agent *backpressure*: formatters, compiler checks, architecture and consistency tests report failures immediately, a green run costs one line of context, and scripts do mechanical work instead of the LLM.
+Claude Code plugin that assesses a repo's pipeline for coding agents (edit, end of turn, commit, CI) and proposes deterministic tools that make agent builds cheaper in tokens and better in code quality. It works for any stack: failure classes come from the git history, tools are chosen for the ecosystem it finds.
 
 ## Contents
 
 | Path | Purpose |
 |---|---|
-| `skills/analyse-project-setup/SKILL.md` | Procedure: prior knowledge, inventory, gap analysis, plan P0 to P3. Invoked only via `/analyse-project-setup` |
-| `skills/analyse-project-setup/inventory.sh` | Deterministic inventory of a repo (git, stack, tests, tools, CI, agent configuration, versions, noise sources) |
-| `skills/analyse-project-setup/CATALOG.md` | Layer model, tools per stack, Semgrep ideas, token techniques, check questions |
-| `tests/smoke.sh` | Builds a throwaway repo with known findings and checks the output of `inventory.sh` |
+| `skills/analyse-project-setup/SKILL.md` | Procedure: map the pipeline, mine the history for failure classes, assess, choose and configure tools, plan P0 to P3. Invoked only via `/analyse-project-setup` |
+| `skills/analyse-project-setup/inventory.sh` | Stack-independent facts: git state, repair commits and hotspots, file types, build manifests, task entry points, commit hooks, CI, agent configuration, version locations, noise folders |
+| `skills/analyse-project-setup/CATALOG.md` | Layer model, concepts mapped from failure class to tool (examples across ecosystems), token techniques, check questions |
+| `tests/smoke.sh` | Builds a throwaway Python repo with known history and checks the output of `inventory.sh` |
 
 ## Installation
 

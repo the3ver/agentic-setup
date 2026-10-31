@@ -1,76 +1,79 @@
 ---
 name: analyse-project-setup
-description: Analyses a repo's agentic coding setup and proposes deterministic tools (hooks, linters, architecture and mutation tests, CI) that protect quality and save LLM tokens. Produces an inventory and a phased plan; changes nothing.
+description: Assesses a repo's pipeline (edit, end of turn, commit, CI) for the coding agent and proposes deterministic tools, configured for this project, that make agent builds cheaper in tokens and better in code quality. Works for any stack. Produces an assessment and a phased plan; changes nothing.
 disable-model-invocation: true
 ---
 
 # Analyse project setup
 
-Goal: give the agent *backpressure* in this repo. Deterministic sensors report failures immediately, a green run costs one line of context, and scripts do mechanical work instead of the LLM. The result is a plan, not an implementation.
+Goal: give the coding agent *backpressure*. The pipeline should report failures deterministically and early, cost one line of context when green, and leave mechanical work to scripts. The subject is the **pipeline**, not the code: what runs at which layer, what it costs, and which failure classes slip through it.
 
-The layer model, the tool catalog per stack and the token techniques are in [CATALOG.md](CATALOG.md). Read it before step 4.
+[CATALOG.md](CATALOG.md) holds the layer model, the concepts (each with the failure class it catches) and the token techniques. Read it before step 3. Its tool names are examples; choose the tools of the stack you find.
 
 Write the report in the user's language.
 
-## 1. Gather prior knowledge
-
-- Project docs in the repo: README, CLAUDE.md/AGENTS.md, CONTRIBUTING, CONTEXT.md, `docs/adr/`. Architecture rules, pitfalls and the release process often live only there.
-- Project knowledge outside the repo, if the environment offers any (notes, a memory MCP server, tickets). The user's instructions say where it lives; skip this point when there is no such source.
-- Read an *Agentic setup* report from an earlier run only after step 2, so it does not bias the fresh look.
-- If a search over past sessions is available: search for the repo name and for keywords such as `flaky`, `red`, `forgot`, `regression`. Only count hits whose `cwd` lies in the repo, and leave out the current session and earlier runs of this skill (their text contains the keywords). Recurring failures from past sessions (red builds, forgotten files, flaky tests) are the best candidates for new rules.
-- The `Failure?` and `unmerged` lines from the inventory (step 2) belong in this list too.
-
-Done when you have a list of *failures and unwritten rules* with their source (it may be empty).
-
-## 2. Take the inventory
+## 1. Map the pipeline
 
 `inventory.sh` sits in the same folder as this SKILL.md (given as the skill's base directory when it loads):
 
 ```bash
-bash <skill-dir>/inventory.sh <repo-path>
+bash <skill-dir>/inventory.sh <repo-path> [history-depth, default 500]
 ```
 
-The script reports git state, stack, tests, code size, quality tools found, CI workflows, agent configuration (size in tokens, including imported files), version locations and noise sources. It detects tools only by config files and patterns: "-" means "not found", not "certainly absent".
+It collects stack-independent facts only: git state, repair commits and hotspots, file types, root files and build manifests, task runner entry points, commit hooks, CI jobs, agent configuration, version locations, noise folders. "-" or a missing line means "not found by the script", not "certainly absent".
 
-Then run the repo's fastest check command once (test script, `gradlew check` or similar) and measure duration, exit code and output lines: `time <command> 2>&1 | wc -l`. Measure exactly the command an agent runs today (for example plain `npm test`): a terser reporter flatters the current state and underestimates what a check wrapper gains. This answers check question 1. Run it in the background if it takes longer than 2 minutes. Afterwards confirm with `git status` that the run changed no tracked files.
+From these facts and the files they point to, identify:
+- **Stack and ecosystem:** languages, build tool, package manager, test framework.
+- **The pipeline per layer** (CATALOG.md): what runs on edit, at end of turn, on commit, in CI, periodically, and what the agent may read.
+- **The check command** an agent would use today. Run it once and measure duration, exit code and output lines: `time <command> 2>&1 | wc -l`. Measure the command as an agent calls it (for example plain `npm test`, `cargo test`, `gradle build`), not with a terser reporter. Run it in the background if it takes longer than 2 minutes, and confirm with `git status` afterwards that it changed no tracked files.
 
-Use both as the factual basis and read further only where a question stays open:
+Done when every layer of the model has a current state (present, partial, missing) and the check command has measured numbers.
 
-- Build file(s), to understand plugins and test configuration.
-- The main CI workflow.
-- CLAUDE.md/AGENTS.md and `.claude/settings*.json`.
-- 2 to 3 typical source and test files, to spot patterns (for example "pure logic classes without framework imports"). Every visible pattern is an architecture rule that today exists only in someone's head.
+## 2. Mine the history for failure classes
 
-Done when every row of the layer model and every row of the tool table for this stack (CATALOG.md) has a current state: present, partial or missing.
+The repair commits from the inventory are the evidence of what the pipeline lets through. For each repair commit (all of them up to about 30, otherwise the most recent 30 plus the hotspots):
+- read its diff (`git show --stat <hash>`, then the relevant hunks),
+- name the **failure class** (for example: unformatted code, null/undefined access, wrong layer dependency, forgotten registration or resource, flaky test from fixed waits or real time, version drift, broken CI config, missing translation),
+- decide whether a deterministic tool would have caught it, and at which layer.
 
-## 3. Research, only for gaps
+Search the current code for a pattern only to configure the rule for a failure class you found in the history: count existing occurrences to choose between failing on all, a baseline, or checking only changed lines. Do not scan the code for patterns without evidence from the history.
 
-Search the web only for what CATALOG.md does not cover for this stack: an unknown framework, unclear compatibility of a tool with the language or build version in use. Every compatibility question that stays open goes into the plan as "to verify". If there is no gap, the plan says "no research needed".
+Further sources for failure classes, if available: the project's docs (README, CLAUDE.md/AGENTS.md, CONTRIBUTING, ADRs), notes systems named in the user's instructions, and a search over past agent sessions (only hits whose `cwd` lies in the repo, excluding runs of this skill). Read an *Agentic setup* report from an earlier run only after this step, so it does not bias the fresh look.
 
-## 4. Gap analysis
+Done when every repair commit you read has a failure class and a verdict (tool could catch it at layer X / needs judgement / one-off).
 
-Walk through the layer model and the tool table row by row and record for each row: current state, gap, concrete proposal with tool and place (hook, build, CI). Also answer every question in the *Check questions* section of CATALOG.md.
+## 3. Assess the pipeline
 
-Each proposal states:
-- which failure or risk it catches (from step 1 or 2),
-- where it runs and how long it takes,
-- whether it saves tokens, protects quality, or both.
+For each layer, record:
+- **Cost:** duration, output lines when green and when red, noise the agent reads (build output, logs, reports, repo copies).
+- **Quality:** which failure classes from step 2 pass this layer undetected.
 
-Done when every layer and every check question is assessed and every failure from step 1 maps to a proposal.
+Answer the check questions in CATALOG.md.
+
+Done when every failure class from step 2 is either caught by an existing layer or listed as a gap.
+
+## 4. Choose and configure tools
+
+For each gap, pick a deterministic tool from the concept in CATALOG.md that fits **this stack**. If you do not know the ecosystem's tool for a concept, or compatibility with the language or build version is unclear, research it; whatever stays unclear goes into the plan as "to verify".
+
+Every proposal states:
+- the failure class and its evidence (commit hashes),
+- tool and concrete configuration for this repo: which rule or check, where it runs (hook, build task, CI job), how existing violations are handled (fix now, baseline, changed lines only), autofix where the tool offers one,
+- cost and benefit: duration per run, output when green, tokens saved or quality gained.
 
 ## 5. Write the plan
 
 Phases by effort and benefit:
-- **P0** now, each under an hour: quiet check wrapper (build and/or tests) + Stop hook, deny rules for noise sources, a single version source, a first architecture rule.
-- **P1** quality in the loop: formatter hook, compiler checks, consistency tests, Semgrep locally + CI.
-- **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, Dependabot, branch protection.
-- **P3** generalisation: uniform verbs (`fmt`, `check`, `test-fast`, `test`), reusable building blocks.
+- **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class.
+- **P1** quality in the loop: formatter on edit, compiler/type checks as errors, consistency tests and custom rules for the remaining failure classes, the same checks in CI.
+- **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, dependency updates, branch protection.
+- **P3** generalisation: uniform verbs (`fmt`, `check`, `test-fast`, `test`) as reusable entry points.
 
-The result is a Markdown report headed *Agentic setup (as of <date>)*: inventory as a table, plan P0 to P3, open points to verify, research sources.
+The result is a Markdown report headed *Agentic setup (as of <date>)*: pipeline per layer as a table (current state, cost, gaps), failure classes with evidence, plan P0 to P3 with configurations, open points to verify, research sources.
 
 Storage:
 - The full report always appears in the answer.
-- It is saved where the user's instructions keep project knowledge (CLAUDE.md/AGENTS.md, notes system). Without such an instruction, only in a place the user names; the target repo stays unchanged.
+- It is saved where the user's instructions keep project knowledge. Without such an instruction, only in a place the user names; the target repo stays unchanged.
 - If a report from an earlier run is already there: replace it instead of appending, and carry over points already implemented as done.
 
 Finally: if the repo has uncommitted changes, point out that tooling changes should follow a clean commit. In a dialogue with the user, ask which phase to start with; when started by another session, only report.
