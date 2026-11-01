@@ -137,8 +137,8 @@ for f in .github/dependabot.yml renovate.json .github/renovate.json .github/CODE
 echo
 echo "## Agent configuration"
 seen=" "
-# The user's global instructions load in every session too
-for f in "$HOME/.claude/CLAUDE.md" CLAUDE.md AGENTS.md GEMINI.md .agents/AGENTS.md .cursorrules .github/copilot-instructions.md .mcp.json; do
+# The user's global instructions load in every session of that agent too
+for f in "$HOME/.claude/CLAUDE.md" "$HOME/.gemini/GEMINI.md" "$HOME/.codex/AGENTS.md" CLAUDE.md AGENTS.md GEMINI.md .agents/AGENTS.md .cursorrules .github/copilot-instructions.md .mcp.json; do
   [ -e "$f" ] || continue
   # Do not count files already measured as an import twice
   [[ $seen == *" $f "* ]] && continue

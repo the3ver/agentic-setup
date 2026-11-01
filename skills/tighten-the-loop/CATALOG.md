@@ -2,10 +2,10 @@
 
 ## Principles
 
-- CLAUDE.md/AGENTS.md is context, not enforcement. Whatever must always happen belongs in a hook, the build or CI.
+- Instruction files (AGENTS.md, CLAUDE.md, GEMINI.md, rules files) are context, not enforcement. Whatever must always happen belongs in a hook, the build or CI.
 - Feedback sensors run inside the agent loop, not only after the commit. Cheap deterministic checks first, expensive LLM reviews later.
 - A green run is one line. Show only failures, fail fast (the first failure stops the run).
-- Every recurring failure class becomes a rule (check, test, static rule), not another line in CLAUDE.md. The history shows which classes recur.
+- Every recurring failure class becomes a rule (check, test, static rule), not another line in an instruction file. The history shows which classes recur.
 - Whatever a tool can fix itself (formatting, import order, simple lint fixes), apply automatically before checking instead of reporting it to the LLM.
 - Mechanical work (version, generated resources, changelog draft) is done by a script or generator.
 - Coding guidelines go to the review agent, not to the writing agent.
@@ -85,7 +85,7 @@ Field notes:
 
 - Quiet wrapper around build/test: success as one line (`CHECK OK: 132 tests, 12s`), on failure only compiler errors or failing tests with trimmed stack traces. Autofix before checking.
 - Skip unchanged states: the end-of-turn hook fingerprints the build inputs and returns immediately when they match the last green run.
-- Read guards (table above) for build output, logs, test reports, dependency folders and agent worktrees (`.claude/worktrees/`). Files with secrets or personal data get one too, for privacy rather than tokens. `.gitignore` alone does not stop an agent from reading a file. Check whether the agent's config folder is git-ignored (often via `.git/info/exclude`): then hooks and guards apply only on this machine. Whether to version that config is the user's decision and a precondition for P0.
+- Read guards (table above) for build output, logs, test reports, dependency folders and repo copies that agents create (for example `.claude/worktrees/`; the inventory lists them under noise). Files with secrets or personal data get one too, for privacy rather than tokens. `.gitignore` alone does not stop an agent from reading a file. Check whether the agent's config folder is git-ignored (often via `.git/info/exclude`): then hooks and guards apply only on this machine. Whether to version that config is the user's decision and a precondition for P0.
 - Keep the instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, copilot-instructions.md) lean, imports included: measure bytes, not lines (about 4 bytes per token). Aim for under 10 KB, about 2,500 tokens per session. Procedures go into skills, enforcement into hooks, reference material into linked files.
 - Generators and scripts for recurring mechanics: the LLM writes only the inputs.
 - Delegate simple subtasks to a cheaper model or a subagent, and verify the result against code and tests.
