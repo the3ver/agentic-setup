@@ -51,6 +51,8 @@ git switch -q -c stranded && git commit -q --allow-empty -m "fix: stranded repai
 mkdir -p build && printf 'artefact' > build/out.bin
 printf '{"iban": "x"}' > config.json
 mkdir -p .agents && printf '# local agent notes\n' > .agents/AGENTS.md
+# Configuration of other coding agents
+mkdir -p .gemini .cursor/rules && printf '{"hooks": {"AfterTool": []}}\n' > .gemini/settings.json && printf 'x' > .cursor/rules/style.mdc
 mkdir -p .claude && printf '{\n  "permissions": {\n    "deny": [\n      "Read(./logs/**)",\n      "Bash(git push --force:*)"\n    ]\n  }\n}\n' > .claude/settings.local.json
 
 out=$(bash "$inv" . 2>&1)
@@ -85,6 +87,8 @@ expect 'documented in README\.md: python -m pytest -q'
 absent 'documented in README\.md: #'
 expect 'playwright\.config\.js: .*retries: 2'
 expect '\.agents/ is git-ignored'
+expect '^- \.gemini/settings\.json \(mentions hooks\)'
+expect '^- \.cursor/rules/: style\.mdc'
 expect '^- config\.json \(no deny rule\)'
 expect 'Commit-time hooks:'
 expect '^- none'

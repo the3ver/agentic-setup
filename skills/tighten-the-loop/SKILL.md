@@ -1,6 +1,7 @@
 ---
 name: tighten-the-loop
-description: Assesses a repo's pipeline (edit, end of turn, commit, CI) for the coding agent and proposes deterministic tools, configured for this project, that make agent builds cheaper in tokens and better in code quality. Works for any stack. Produces an assessment and a phased plan; changes nothing.
+description: Assesses a repo's pipeline (edit, end of turn, commit, CI) for the coding agent and proposes deterministic tools, configured for this project, that make agent builds cheaper in tokens and better in code quality. Works for any stack and any coding agent. Produces an assessment and a phased plan; changes nothing. Run it only when the user asks for it by name, not on your own initiative.
+# Claude Code only; other agents rely on the last sentence of the description
 disable-model-invocation: true
 ---
 

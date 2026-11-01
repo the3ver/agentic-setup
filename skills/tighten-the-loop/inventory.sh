@@ -156,7 +156,17 @@ for f in .claude/settings.json .claude/settings.local.json "$HOME/.claude/settin
   ev=$(grep -oE '"(PreToolUse|PostToolUse|Stop|SubagentStop|UserPromptSubmit|SessionStart)"' "$f" | sort -u | tr -d '"' | tr '\n' ' ')
   echo "- ${f/#$HOME/\~}: hooks: ${ev:--}, deny rules: $(denycount "$f")"
 done
-for d in .agents .claude .cursor; do
+# Other coding agents: which ones the repo is set up for, and whether their config mentions hooks
+for f in .codex/config.toml .codex/hooks.json .gemini/settings.json .cursor/hooks.json .cursor/rules .github/skills \
+  .github/instructions .github/hooks .windsurf/rules .clinerules opencode.json .opencode .agents/skills; do
+  [ -e "$f" ] || continue
+  if [ -d "$f" ]; then
+    echo "- $f/: $(ls "$f" | head -8 | tr '\n' ' ')"
+  else
+    echo "- $f$(grep -qi 'hooks' "$f" && echo ' (mentions hooks)')"
+  fi
+done
+for d in .agents .claude .cursor .codex .gemini .opencode .windsurf; do
   [ -d "$d" ] && git check-ignore -q "$d/" && echo "- $d/ is git-ignored; the agent configuration in it stays on this machine"
 done
 for d in .claude/skills .claude/agents .claude/commands; do [ -d "$d" ] && echo "- $d: $(ls "$d" | tr '\n' ' ')"; done
