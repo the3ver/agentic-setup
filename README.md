@@ -1,6 +1,6 @@
 # agentic-setup
 
-Claude Code plugin that assesses a repo's pipeline for coding agents (edit, end of turn, commit, CI) and proposes deterministic tools that make agent builds cheaper in tokens and better in code quality. It works for any stack: failure classes come from the git history, tools are chosen for the ecosystem it finds.
+Agent skill `tighten-the-loop`: assesses a repo's pipeline for coding agents (edit, end of turn, commit, CI) and proposes deterministic tools that make agent builds cheaper in tokens and better in code quality. It works for any stack and any agent that reads skills (Claude Code, Codex, Gemini CLI, Copilot, Cursor and others): failure classes come from the git history, tools are chosen for the ecosystem it finds, hooks for the agents the repo uses. Also packaged as a Claude Code plugin.
 
 ## Contents
 
