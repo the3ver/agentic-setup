@@ -15,15 +15,31 @@
 
 | Layer | When | Budget | Purpose |
 |---|---|---|---|
-| 1 Edit | PostToolUse hook on the changed file | < 2 s | format, syntax check of that file |
-| 2 End of turn | Stop hook | < 60 s | build + fast tests + static rules, quiet; blocks (exit 2) when red |
+| 1 Edit | after-edit hook of the agent, on the changed file | < 2 s | format, syntax check of that file |
+| 2 End of turn | end-of-turn hook of the agent | < 60 s | build + fast tests + static rules, quiet; sends the agent back to work when red |
 | 3 Commit | commit-msg / pre-commit | < 60 s | commit message format, staged-file checks |
 | 4 Push/PR | CI | minutes | full suite, the same rules as layer 2, security scans, results as annotations (SARIF) |
 | 5 Periodic | CI schedule | long | mutation testing, dependency updates, slow scans |
 | 6 Judgement | review subagent | tokens | guidelines, spec check, only when 1 to 5 are green |
 | Cross-cutting | permissions | 0 | deny reading build output, logs, reports, dependency and repo-copy folders; guardrails against destructive git commands |
 
-Hook mechanics in Claude Code: exit 2 blocks and passes stderr to Claude, exit 1 counts as non-blocking. Keep layers 1 and 2 fast; skip them when nothing relevant changed (fingerprint of the inputs).
+Keep layers 1 and 2 fast; skip them when nothing relevant changed (fingerprint of the inputs). Put the logic into one agent-independent script (the check wrapper) and call it from each agent's hook, so the same check serves every agent, git hooks and CI.
+
+### Hooks per agent
+
+Which events implement layers 1 and 2, and how a hook sends the agent back. As of 2026-11; hooks change fast, so check the linked docs before configuring and mark the proposal "to verify" when unsure.
+
+| Agent | Config | Layer 1 (after edit) | Layer 2 (end of turn) | Sends the agent back when red | Read guard (cross-cutting) |
+|---|---|---|---|---|---|
+| Claude Code | `.claude/settings.json` (`hooks`, `permissions.deny`) | `PostToolUse`, matcher `Edit\|Write` | `Stop` | exit 2, stderr goes to the agent | `permissions.deny` with `Read(...)` |
+| Codex CLI | `.codex/hooks.json` or `[hooks.*]` in `config.toml` | `PostToolUse` (matcher on tool name; whether `apply_patch` edits match: to verify) | `Stop` (JSON output required) | JSON `decision` on stdout | sandbox and approval policy, no per-path read deny (to verify) |
+| Gemini CLI | `.gemini/settings.json` (`hooks`) | `AfterTool`, matcher regex on tool name | `AfterAgent` | exit 2: retry turn with stderr as feedback | `BeforeTool` hook with exit 2 on read tools |
+| Cursor | `.cursor/hooks.json` (`version: 1`) | `afterFileEdit` (informational, cannot talk back to the agent) | `stop` (`followup_message` becomes the next user message; `loop_count` limits loops) | `followup_message` | `beforeReadFile` (to verify) |
+| GitHub Copilot (CLI, cloud agent) | `.github/hooks/*.json` | `postToolUse` (can add context for the model) | `sessionEnd` (cleanup only; cannot send the agent back: to verify) | none known at end of turn; use layer 1 or CI | `preToolUse` (to verify) |
+| OpenCode | plugin in `.opencode/plugin/` | `tool.execute.after` (reported as not firing in some versions) | `session.idle` (fire-and-forget) | none; the plugin can only report | `tool.execute.before` |
+| Windsurf, Cline, Antigravity | to verify | | | | |
+
+Where an agent cannot send itself back at the end of the turn, layer 3 (git pre-commit hook running the check wrapper) and layer 4 (CI) carry the load, and the instruction file (AGENTS.md) tells the agent to run the check command before finishing. That instruction is context, not enforcement: say so in the report.
 
 ## Concepts: failure class to tool
 
@@ -37,7 +53,7 @@ Tool names are examples. Pick the equivalent of the stack at hand and research i
 | Formatter on edit | baseline | style churn in diffs, review noise, "fix formatting" commits | formatter config, hook or CI check | Spotless, Prettier, Biome, ruff format, rustfmt, gofmt, dotnet format, mix format |
 | Lint / compiler checks as errors | baseline | known bug patterns, unused code, suspicious constructs | linter config, warnings treated as errors | Error Prone, ESLint, ruff (`ruff check --fix` as autofix), clippy, staticcheck, Roslyn analyzers, Credo |
 | Type and null checks | baseline | null/undefined access, wrong types | strict mode in config, type checker in CI | NullAway, `tsc --noEmit` / `checkJs`, mypy, pyright, Kotlin/Rust/Go compilers |
-| CI parity | baseline | something passes locally and fails later, or the reverse; no check at all between commits | one CI job calls the same check command as the Stop hook | a workflow running the check wrapper on push and PR; OS matrix when the repo ships OS-specific scripts (`.bat`, `.ps1`) |
+| CI parity | baseline | something passes locally and fails later, or the reverse; no check at all between commits | one CI job calls the same check command as the end-of-turn hook | a workflow running the check wrapper on push and PR; OS matrix when the repo ships OS-specific scripts (`.bat`, `.ps1`) |
 | Sensitive data protection | baseline | secrets or personal data read by the agent or committed | deny rules and ignore rules for such files, secret scan | `Read(...)` deny for `config*.json`, `.env*`, data exports; `.gitignore` for real data files; gitleaks in CI |
 | Architecture rules | evidence | wrong layer or module dependencies, logic coupled to framework | rule tests or dependency config | ArchUnit, dependency-cruiser, import-linter, go-arch-lint, NetArchTest; a guard test that greps imports |
 | Consistency tests | evidence | forgotten registration, resource, translation, protocol field, config key | tests that compare declarations with their counterparts | test that every registered item has its resource files; message types of sender and receiver match |
@@ -68,9 +84,9 @@ Field notes:
 ## Token techniques
 
 - Quiet wrapper around build/test: success as one line (`CHECK OK: 132 tests, 12s`), on failure only compiler errors or failing tests with trimmed stack traces. Autofix before checking.
-- Skip unchanged states: the Stop hook fingerprints the build inputs and returns immediately when they match the last green run.
-- Deny rules in `.claude/settings.json` for build output, logs, test reports, dependency folders and `.claude/worktrees/`. Files with secrets or personal data get a deny rule too, for privacy rather than tokens. Check whether `.claude/` is git-ignored (often via `.git/info/exclude`): then hooks and deny rules apply only on this machine. Whether to version `.claude/settings.json` is the user's decision and a precondition for P0.
-- Keep CLAUDE.md/AGENTS.md lean, imports included: measure bytes, not lines (about 4 bytes per token). Aim for under 10 KB, about 2,500 tokens per session. Procedures go into skills, enforcement into hooks, reference material into linked files.
+- Skip unchanged states: the end-of-turn hook fingerprints the build inputs and returns immediately when they match the last green run.
+- Read guards (table above) for build output, logs, test reports, dependency folders and agent worktrees (`.claude/worktrees/`). Files with secrets or personal data get one too, for privacy rather than tokens. `.gitignore` alone does not stop an agent from reading a file. Check whether the agent's config folder is git-ignored (often via `.git/info/exclude`): then hooks and guards apply only on this machine. Whether to version that config is the user's decision and a precondition for P0.
+- Keep the instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, copilot-instructions.md) lean, imports included: measure bytes, not lines (about 4 bytes per token). Aim for under 10 KB, about 2,500 tokens per session. Procedures go into skills, enforcement into hooks, reference material into linked files.
 - Generators and scripts for recurring mechanics: the LLM writes only the inputs.
 - Delegate simple subtasks to a cheaper model or a subagent, and verify the result against code and tests.
 - Measure the effect on the whole task: a terse context can cause more searching later.
@@ -100,3 +116,8 @@ Field notes:
 - Dasith, Backpressure in Coding Agent Harnesses: https://dasith.me/2026/06/14/backpressure-in-coding-agent-harnesses/
 - Claude Code Hooks Explained: https://blakecrosley.com/blog/claude-code-hooks-explained
 - Claude Code Docs, Code Review: https://code.claude.com/docs/en/code-review
+- Codex hooks: https://developers.openai.com/codex/hooks
+- Gemini CLI hooks reference: https://geminicli.com/docs/hooks/reference/
+- Cursor hooks: https://cursor.com/docs/hooks
+- GitHub Copilot hooks reference: https://docs.github.com/en/copilot/reference/hooks-reference
+- OpenCode plugins: https://opencode.ai/docs/plugins/

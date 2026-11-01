@@ -29,6 +29,7 @@ It collects stack-independent facts only: git state, repair commits and hotspots
 
 From these facts and the files they point to, identify:
 - **Stack and ecosystem:** languages, build tool, package manager, test framework.
+- **The coding agents** the repo is set up for (inventory: instruction files, agent config folders) and the one the user works with. Hook proposals go to these agents, using the table "Hooks per agent" in CATALOG.md; when several agents are in use, one check script called from each agent's hook.
 - **The pipeline per layer** (CATALOG.md): what runs on edit, at end of turn, on commit, in CI, periodically, and what the agent may read.
 - **The check command** an agent would use today: a task runner target or npm script if there is one, else the command documented in README/AGENTS.md (the inventory lists both), else the framework's default. Run it once and measure duration, exit code and output lines:
   `time <command> > <scratch>/check.out 2>&1; echo "exit=$?"; wc -l < <scratch>/check.out`
@@ -84,7 +85,7 @@ Every proposal states:
 ## 5. Write the plan
 
 Phases by effort and benefit:
-- **P0** now, each under an hour: quiet check wrapper + Stop hook, deny rules for noise, a single version source, the rule for the most frequent failure class or for a class a tool was proven to catch in step 2, whichever fits in an hour (a class that needs a new kind of test goes to P1).
+- **P0** now, each under an hour: quiet check wrapper + end-of-turn hook of the agent in use, read guards for noise, a single version source, the rule for the most frequent failure class or for a class a tool was proven to catch in step 2, whichever fits in an hour (a class that needs a new kind of test goes to P1).
 - **P1** quality in the loop: formatter on edit, compiler/type checks as errors, consistency tests and custom rules for the remaining failure classes, the same checks in CI.
 - **P2** deeper: periodic mutation testing, generators instead of LLM handwork, changelog from commits, review subagent with guidelines, dependency updates, branch protection.
 
